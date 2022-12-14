@@ -1,0 +1,10 @@
+name: footing
+channels:
+  - conda-forge
+dependencies:
+  - python==3.10
+  - pip
+  - pip:
+    - poetry>=1.2
+variables:
+  EXEC_WRAPPER: ""
