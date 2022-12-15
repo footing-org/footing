@@ -9,6 +9,7 @@ import cookiecutter.config as cc_config
 import cookiecutter.generate as cc_generate
 import cookiecutter.prompt as cc_prompt
 import cookiecutter.repository as cc_repository
+import formaldict
 import yaml
 
 import footing.constants
@@ -114,6 +115,7 @@ def get_cookiecutter_config(template, default_config=None, version=None, paramet
     template = format_url(template, auth=True)
 
     default_config = default_config or {}
+    parameters = parameters or {}
     config_dict = cc_config.get_user_config()
     repo_dir, _ = cc_repository.determine_repo_dir(
         template=template,
@@ -122,14 +124,27 @@ def get_cookiecutter_config(template, default_config=None, version=None, paramet
         checkout=version,
         no_input=True,
     )
-    context_file = os.path.join(repo_dir, "cookiecutter.json")
-    context = cc_generate.generate_context(
-        context_file=context_file,
-        default_context={**config_dict["default_context"], **default_config},
-    )
+    cc_context_file = os.path.join(repo_dir, "cookiecutter.json")
+    footing_context_file = os.path.join(repo_dir, "footing.yaml")
 
-    no_input = parameters is not None
-    config = cc_prompt.prompt_for_config(context, no_input=no_input)
+    if os.path.exists(footing_context_file):
+        with open(footing_context_file) as f:
+            footing_context = yaml.load(f, Loader=yaml.SafeLoader)
+
+        param_schema = formaldict.Schema(footing_context["parameters"])
+        if parameters:
+            config = param_schema.parse({**default_config, **parameters}).data
+        else:
+            config = param_schema.prompt(defaults=default_config).data
+    elif os.path.exists(cc_context_file):
+        context = cc_generate.generate_context(
+            context_file=cc_context_file,
+            default_context={**config_dict["default_context"], **default_config},
+        )
+        config = cc_prompt.prompt_for_config(context, no_input=bool(parameters))
+    else:
+        raise RuntimeError("No footing.yaml found")
+
     if parameters:
         for key, val in parameters.items():
             config[key] = val

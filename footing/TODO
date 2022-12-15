@@ -1,7 +1,7 @@
 - Use footing variable name instead of cookiecutter *
 - Use shortcuts when listing gh or gl repos *
 - Remove all SSH access *
-- New prompts and config
+- New prompts and config *
 - Only use tokens for auth *
 - Login with footing to sync tokens
 - Edit structured files
