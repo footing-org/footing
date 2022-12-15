@@ -60,14 +60,15 @@ def main(ctx, version):
     default=None,
     help="Template parameters to inject. Will avoid prompting.",
 )
-def setup(template, version, parameters):
+@click.option("-d", "--dir", "cwd", default=None, help="Setup the project in this directory.")
+def setup(template, version, parameters, cwd):
     """
     Setup new project. Takes a git path to the template as returned
     by "footing ls". In order to start a project from a
     particular version (instead of the latest), use the "-v" option.
     """
     parameters = _parse_parameters(parameters)
-    footing.setup.setup(template, version=version, parameters=parameters)
+    footing.setup.setup(template, version=version, parameters=parameters, cwd=cwd)
 
 
 @main.command()
@@ -110,7 +111,7 @@ def update(check, enter_parameters, version, parameters):
 
     if check:
         if footing.update.up_to_date(version=version):
-            print("Footing package is up to date")
+            print("Footing project is up to date")
         else:
             msg = (
                 "This footing package is out of date with the latest template."

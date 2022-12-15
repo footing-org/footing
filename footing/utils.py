@@ -44,7 +44,7 @@ def format_url(url, auth=False):
 
     if auth:
         url_parts = url_parts._replace(
-            netloc=f"{os.environ[footing.constants.GITHUB_API_TOKEN_ENV_VAR]}@{parsed.netloc}"
+            netloc=f"{os.environ[footing.constants.GITHUB_API_TOKEN_ENV_VAR]}@{url_parts.netloc}"
         )
 
     url_parts = url_parts._replace(scheme="https")
@@ -63,28 +63,6 @@ def format_path(url, auth=False):
 
     # Assume this is a filesystem path
     return url
-
-
-def get_repo_path(template):
-    """Given a git SSH path (e.g git@github.com:owner/repo.git), return the repo path
-
-    The repo path is in the form of "owner/repo"
-    """
-    return template[:-4].split(":")[1]
-
-
-def get_auth_template(template):
-    """If using HTTPS, return a URL with the auth token in it"""
-    if template.startswith("https://"):
-        parsed = urlparse(template)
-        if "@" not in parsed.netloc:
-            return parsed._replace(
-                netloc=f"{os.environ[footing.constants.GITHUB_API_TOKEN_ENV_VAR]}@{parsed.netloc}"
-            ).geturl()
-        else:
-            return template
-    else:
-        return template
 
 
 def shell(cmd, check=True, stdin=None, stdout=None, stderr=None):
@@ -133,7 +111,7 @@ def get_cookiecutter_config(template, default_config=None, version=None, paramet
     Returns:
         tuple: The cookiecutter repo directory and the config dict
     """
-    template = get_auth_template(template)
+    template = format_url(template, auth=True)
 
     default_config = default_config or {}
     config_dict = cc_config.get_user_config()

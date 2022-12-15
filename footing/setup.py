@@ -101,9 +101,8 @@ def setup(template, version=None, parameters=None, cwd=None):
     """
     # footing.check.not_in_git_repo()
     cwd = cwd or os.getcwd()
-    auth_template = footing.utils.get_auth_template(template)
     cc_repo_dir, config = footing.utils.get_cookiecutter_config(
-        auth_template, version=version, parameters=parameters
+        template, version=version, parameters=parameters
     )
 
     if not version:
@@ -116,4 +115,5 @@ def setup(template, version=None, parameters=None, cwd=None):
             except subprocess.CalledProcessError:
                 version = None  # For local templates with no git repo. TODO figure out how to handle this case
 
-    _generate_files(repo_dir=cc_repo_dir, config=config, template=template, version=version)
+    with footing.utils.cd(cwd):
+        _generate_files(repo_dir=cc_repo_dir, config=config, template=template, version=version)

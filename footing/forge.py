@@ -40,31 +40,11 @@ def from_url(url):
         raise AssertionError()
 
 
-def get_name_from_ssh_path(template_path):
-    matches = re.search(r"\/([^/]+)\.git$", template_path)
-    return matches.group(1)
-
-
-def _get_latest_template_version_w_ssh(template):
-    """
-    Tries to obtain the latest template version using an SSH key
-    """
-    cmd = "git ls-remote {} | grep HEAD | cut -f1".format(template)
-    ret = footing.utils.shell(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stderr = ret.stderr.decode("utf-8").strip()
-    stdout = ret.stdout.decode("utf-8").strip()
-    if stderr and not stdout:
-        raise RuntimeError(
-            ('An unexpected error happened when running "{}". (stderr="{}"').format(cmd, stderr)
-        )
-    return stdout
-
-
 class Forge(metaclass=abc.ABCMeta):
     """The base class for all git forges.
 
     Forges must implement both ``ls`` for listing templates/projects
-    and ``_get_latest_template_version`` for finding the latest version
+    and ``get_latest_template_version`` for finding the latest version
     of a template. The ``api_token_env_var_name`` property must also
     be configured.
     """
@@ -80,39 +60,8 @@ class Forge(metaclass=abc.ABCMeta):
         """Returns the environment variable name for configuring an API token"""
         pass
 
-    def get_latest_template_version(self, template):
-        """Retrieves the latest template SHA
-
-        Returns:
-            str: The latest template version
-        """
-        try:
-            latest_version = _get_latest_template_version_w_ssh(template)
-        except (subprocess.CalledProcessError, RuntimeError):
-            try:
-                latest_version = self._get_latest_template_version(template)
-            except (
-                requests.exceptions.RequestException,
-                footing.exceptions.InvalidEnvironmentError,
-            ) as exc:
-                raise footing.exceptions.CheckRunError(
-                    (
-                        'Could not obtain the latest template version of "{}"'
-                        " using git SSH key or the configured {} API token."
-                        ' Set either a "{}" environment variable'
-                        " with access to the template or obtain permission so that"
-                        " the git SSH key can access it."
-                    ).format(
-                        template,
-                        self.__class__.__name__,
-                        self.api_token_env_var_name,
-                    )
-                ) from exc
-
-        return latest_version
-
     @abc.abstractmethod
-    def _get_latest_template_version(self, template):
+    def get_latest_template_version(self, template):
         """Finds the latest version of a template using an API
 
         By default, the latest version of a template is used with standard
@@ -206,10 +155,10 @@ class Github(Forge):
 
         return repositories
 
-    def _get_latest_template_version(self, template):
+    def get_latest_template_version(self, template):
         """Tries to obtain the latest template version with the Github API"""
-        repo_path = footing.utils.get_repo_path(template)
-        api = "/repos/{}/commits".format(repo_path)
+        repo_path = footing.utils.parse_url(template).path.strip("/")
+        api = f"/repos/{repo_path}/commits"
 
         last_commit_resp = self._get(api, params={"per_page": 1})
         last_commit_resp.raise_for_status()
@@ -252,39 +201,24 @@ class Gitlab(Forge):
     def api_token_env_var_name(self):
         return footing.constants.GITLAB_API_TOKEN_ENV_VAR
 
-    def get_client(self, gitlab_url):
+    def get_client(self, template):
         footing.check.has_env_vars(self.api_token_env_var_name)
+        url_parts = footing.utils.parse_url(template)
+        gitlab_url = f"{url_parts.scheme}://{url_parts.netloc}"
         api_token = os.environ[self.api_token_env_var_name]
         return gitlab.Gitlab(url=gitlab_url, private_token=api_token)
 
-    def _get_gitlab_url_and_repo_path(self, template):
-        """Given a template, return a gitlab url and a repo path"""
-        repo_path = footing.utils.get_repo_path(template)
-
-        # Figure out the top-level gitlab domain. Note that it's assumed
-        # the template is an SSH path in the format of git@domain:path
-        domain = template.split(":")[0].split("@")[1]
-        gitlab_url = "https://" + domain
-
-        return gitlab_url, repo_path
-
-    def _get_latest_template_version(self, template):  # pragma: no cover
+    def get_latest_template_version(self, template):  # pragma: no cover
         """Tries to obtain the latest template version with the Gitlab API"""
-        gitlab_url, repo_path = self._get_gitlab_url_and_repo_path(template)
-
-        gl = self.get_client(gitlab_url)
-        project = gl.projects.get(repo_path)
+        gl = self.get_client(template)
+        project = gl.projects.get(footing.utils.parse_url(template).path)
         sha = project.commits.list()[0].id
 
         return sha
 
-    def _get_gitlab_url_and_group(self, forge):
+    def _get_gitlab_group(self, forge):
         """Given a forge, return a gitlab url and group"""
-        if not forge.startswith("http"):
-            forge = "https://" + forge
-
-        url_parts = urlparse(forge)
-        gitlab_url = url_parts.scheme + "://" + url_parts.netloc
+        url_parts = parse_url(forge)
         group = url_parts.path.strip("/")
 
         # If users are listing templates on gitlab.com and not a self-hosted gitlab,
@@ -304,9 +238,9 @@ class Gitlab(Forge):
         # and "projects"
         raise RuntimeError("Gitlab currently not supported for this operation")
 
-        gitlab_url, group = self._get_gitlab_url_and_group(forge)
+        gitlab_url, group = self._get_gitlab_group(forge)
 
-        gl = self.get_client(gitlab_url)
+        gl = self.get_client(forge)
         if group:
             # Search under a group if one is specified
             gl = gl.groups.get(group)
@@ -325,7 +259,7 @@ class Gitlab(Forge):
             )
 
         # Fetch projects associated with search results
-        gl = self.get_client(gitlab_url)
+        gl = self.get_client(forge)
         projects = [gl.projects.get(r["project_id"]) for r in results]
 
         return collections.OrderedDict(

@@ -125,7 +125,7 @@ def test_update_check(version, up_to_date_return, capsys, mocker):
     footing.cli.main()
 
     out, _ = capsys.readouterr()
-    assert out == "Footing package is up to date\n"
+    assert out == "Footing project is up to date\n"
     mock_up_to_date.assert_called_once_with(version=version)
 
 

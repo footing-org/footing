@@ -35,8 +35,8 @@ def _cookiecutter_configs_have_changed(template, old_version, new_version):
         bool: True if the cookiecutter.json files have been changed in the old and new versions
     """
     with tempfile.TemporaryDirectory() as clone_dir:
-        auth_template = footing.utils.get_auth_template(template)
-        repo_dir = cc_vcs.clone(auth_template, old_version, clone_dir)
+        template = footing.utils.format_url(template, auth=True)
+        repo_dir = cc_vcs.clone(template, old_version, clone_dir)
         old_config = json.load(open(os.path.join(repo_dir, "cookiecutter.json")))
         subprocess.check_call(
             "git checkout %s" % new_version,
@@ -51,11 +51,11 @@ def _cookiecutter_configs_have_changed(template, old_version, new_version):
 
 def _apply_template(template, target, *, checkout, extra_context):
     """Apply a template to a temporary directory and then copy results to target."""
-    auth_template = footing.utils.get_auth_template(template)
+    template = footing.utils.format_url(template, auth=True)
 
     with tempfile.TemporaryDirectory() as tempdir:
         repo_dir = cc_main.cookiecutter(
-            auth_template,
+            template,
             checkout=checkout,
             no_input=True,
             output_dir=tempdir,
@@ -77,8 +77,7 @@ def _apply_template(template, target, *, checkout, extra_context):
 def _get_latest_template_version(template):
     """Obtains the latest template version from the appropriate git forge"""
     client = footing.forge.from_url(template)
-    auth_template = footing.utils.get_auth_template(template)
-    return client.get_latest_template_version(auth_template)
+    return client.get_latest_template_version(template)
 
 
 @footing.utils.set_cmd_env_var("update")
@@ -232,7 +231,7 @@ def update(
                 "You will be prompted for the parameters of the new template."
                 " Please read the docs at https://github.com/{} before entering parameters."
                 " Press enter to continue"
-            ).format(footing.utils.get_repo_path(new_template))
+            ).format(footing.utils.parse_url(new_template).path)
         else:
             cc_config_input_msg = (
                 "A new template variable has been defined in the updated template."
