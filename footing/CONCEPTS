@@ -1,0 +1,33 @@
+--------
+Concepts
+--------
+
+Project
+  - Github repo (used by terraform)
+  - Templates
+
+Legs
+  - Resources that host the project
+  - Can run legs locally or remotely using Terraform
+
+Dependencies
+   - Can specify binaries
+   - Can point to pyproject, package.json, or provide a build script
+
+Variables/Env
+    - Can be used to create different flavors of legs
+
+--------------
+Getting to MVP
+--------------
+
+- Initializes project from template correctly with prompts
+- Bootstraps other dependencies such as terraform
+- Stores local terraform config and state elsewhere. Remote terraform config can be stored in repo (stretch)
+- Can install Conda in the proper location (stretch)
+- Initiates local environments based on env file
+- Can run commands within environment easily
+- Can stand up or destroy local or remote legs
+- Template that runs Django properly on DigitalOcean (or any other host) (stretch)
+- Template that can pull in changes like Celery (stretch)
+- Definition of a remote runner where you can easily run tests (stretch)

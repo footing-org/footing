@@ -43,7 +43,7 @@ Starting new projects
 
 A new project can be set up from a template with::
 
-    footing setup <template_path>
+    footing init <template_path>
 
 What happens next is dependent on how the template is configured. By default, `cookiecutter`_ will
 prompt the user for template parameters, defined in the ``cookiecutter.json`` file of the template
@@ -55,7 +55,7 @@ Keeping your project up to date with the latest template
 
 If a template is ever updated, changes can be pulled into a footing-created project with::
 
-    footing update
+    footing sync
 
 This will git merge the template changes into your repository into a special ``_footing_update`` branch.
 You will need to review the changes, resolve
@@ -65,7 +65,7 @@ Sometimes it is desired that projects always remain up to date with the latest t
 that each project obtains a security patch to a dependency or doing an organization-wide upgrade to a new
 version of Python.
 
-Using ``footing update --check`` from the repository will succeed if the project is up to date with the latest
+Using ``footing sync --check`` from the repository will succeed if the project is up to date with the latest
 template or return a non-zero exit code if it isn't. This command can be executed as part of automated testing
 that happens in continuous integration in order to ensure all projects remain up to date with changes before
 being deployed.
@@ -87,7 +87,7 @@ Projects can be switched to another template with::
 
 	footing switch <template_path>
 
-Similar to ``footing update``, you will need to review the changes, resolve conflicts, and then ``git add`` and
+Similar to ``footing sync``, you will need to review the changes, resolve conflicts, and then ``git add`` and
 ``git push`` these changes.
 
 .. note::

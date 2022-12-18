@@ -26,25 +26,25 @@ def mock_successful_exit(mock_exit):
 @pytest.mark.parametrize(
     "subcommand, args, expected_function, exp_call_args, exp_call_kwargs",
     [
-        ("setup", ["t"], "footing.setup.setup", ["t"], {"version": None}),
+        ("setup", ["t"], "footing.init.init", ["t"], {"version": None}),
         (
             "setup",
             ["t", "-v", "v1"],
-            "footing.setup.setup",
+            "footing.init.init",
             ["t"],
             {"version": "v1"},
         ),
         (
             "update",
             [],
-            "footing.update.update",
+            "footing.sync.sync",
             [],
             {"new_version": None, "enter_parameters": False},
         ),
         (
             "update",
             ["-c", "-v", "v1"],
-            "footing.update.up_to_date",
+            "footing.sync.up_to_date",
             [],
             {"version": "v1"},
         ),
@@ -60,7 +60,7 @@ def mock_successful_exit(mock_exit):
         (
             "switch",
             ["new_t", "-v", "new_v"],
-            "footing.update.update",
+            "footing.sync.sync",
             [],
             {"new_template": "new_t", "new_version": "new_v"},
         ),
@@ -114,10 +114,10 @@ def test_main_no_args(mocker, capsys):
     ],
 )
 def test_update_check(version, up_to_date_return, capsys, mocker):
-    """Verifies checking for updates when calling footing update -c"""
+    """Verifies checking for updates when calling footing sync -c"""
     mocker.patch.object(sys, "argv", ["footing", "update", "-c", "-v", version])
     mock_up_to_date = mocker.patch(
-        "footing.update.up_to_date",
+        "footing.sync.up_to_date",
         autospec=True,
         return_value=up_to_date_return,
     )

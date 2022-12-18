@@ -8,7 +8,7 @@ input about a project and then spin up a local directory with the project scaffo
 more about how to make your own cookiecutter template, consult the `cookiecutter docs <https://cookiecutter.readthedocs.io/en/latest/>`_.
 
 After you have created a template and published it to Github or Gitlab, it will be displayed with ``footing ls``
-and can also be used by ``footing setup``. There is no additional setup required. Make sure the description of your repo is filled in,
+and can also be used by ``footing init``. There is no additional setup required. Make sure the description of your repo is filled in,
 because that will be returned when users type ``footing ls -l``.
 
 Making Project Creation Seamless with Cookiecutter Hooks
@@ -18,7 +18,7 @@ Once you have created a cookiecutter template and published it, it will work wit
 ways to make project setup even more seamless.
 
 For example, say a cookiecutter template has been created at git@github.com:user/cookiecutter-template.git. When the user calls
-``footing setup git@github.com:user/cookiecutter-template.git``, the templated project will be created locally, but the user will
+``footing init git@github.com:user/cookiecutter-template.git``, the templated project will be created locally, but the user will
 be left to do remaining setup steps manually (like pushing to Github, setting up continuous integration, etc).
 
 Cookiecutter offers the ability to insert `pre or post generate hooks <http://cookiecutter.readthedocs.io/en/latest/advanced/hooks.html>`_
@@ -33,7 +33,7 @@ Hooks can be used for initial project setup in a variety of ways, some examples 
 4. Setting up continuous integration for a project
 5. Creating an initial server for a web app along with a domain name
 
-Keep in mind that cookiecutter hooks are called during ``footing setup`` and ``footing update``. Although hooks should be idempotent in
+Keep in mind that cookiecutter hooks are called during ``footing init`` and ``footing sync``. Although hooks should be idempotent in
 the case of transient setup failures, sometimes it is not desirable to have hooks execute during ``setup`` and ``update``. In order
 to customize this behavior in your hooks, footing exports the ``_FOOTING`` environment variable and sets it to value of the command
 being executed (i.e. "ls", "setup", or "update").
@@ -77,15 +77,15 @@ Here's an example of pushing the newly-created project to github with a ``post_g
             pass
 
     if __name__ == "__main__":
-        # Only run these commands when "footing setup" is being called
+        # Only run these commands when "footing init" is being called
         if os.environ.get('_FOOTING') == 'setup':
             push_to_github()
 
-In the above hook, the ``push_to_github`` function is called only when running ``footing setup``. In other words, this
-hook code will not run on ``footing update`` or any other commands that invoke the template to be rendered.
+In the above hook, the ``push_to_github`` function is called only when running ``footing init``. In other words, this
+hook code will not run on ``footing sync`` or any other commands that invoke the template to be rendered.
 
 As shown above, variables that are part of the template, like ``{repo_name}`` can be referenced and used in the hooks.
-If the above fails, it will cause all of ``footing setup`` to fail, which will in turn not create any local project on
+If the above fails, it will cause all of ``footing init`` to fail, which will in turn not create any local project on
 the user's machine. Idempotency of project hooks should be kept in mind when designing them.
 
 .. note::

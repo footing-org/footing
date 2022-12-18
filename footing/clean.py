@@ -19,8 +19,8 @@ def clean():
 
     Tries to clean up:
 
-    1. The temporary update branch used during ``footing update``
-    2. The primary update branch used during ``footing update``
+    1. The temporary update branch used during ``footing sync``
+    2. The primary update branch used during ``footing sync``
     """
     footing.check.in_git_repo()
 

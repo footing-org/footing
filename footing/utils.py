@@ -2,6 +2,7 @@
 import contextlib
 import functools
 import os
+import pathlib
 import subprocess
 from urllib.parse import urlparse
 
@@ -14,6 +15,14 @@ import yaml
 
 import footing.constants
 import footing.exceptions
+
+
+def config_dir():
+    return pathlib.Path(os.path.expanduser("~")) / ".footing"
+
+
+def conda_dir():
+    return config_dir() / "conda"
 
 
 def format_url(url, auth=False):
@@ -90,6 +99,8 @@ def read_footing_config():
 
 def write_footing_config(footing_config, template, version):
     """Writes the footing YAML configuration"""
+    pathlib.Path(footing.constants.FOOTING_CONFIG_FILE).parent.mkdir(parents=True, exist_ok=True)
+
     with open(footing.constants.FOOTING_CONFIG_FILE, "w") as footing_config_file:
         versioned_config = {
             **footing_config,

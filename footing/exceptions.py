@@ -31,7 +31,7 @@ class NotUpToDateWithTemplateError(Error):
 
 
 class CheckRunError(Error):
-    """When running ``footing update --check`` errors"""
+    """When running ``footing sync --check`` errors"""
 
 
 class InvalidEnvironmentError(Error):

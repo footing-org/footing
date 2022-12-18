@@ -4,9 +4,10 @@ The footing CLI contains commands for setting up, listing, and updating projects
 Commands
 ~~~~~~~~
 
-* ``footing setup`` - Sets up a new project
+* ``footing bootstrap`` - Bootstrap footing's dependencies
+* ``footing init`` - Sets up a new project
 * ``footing ls`` - Lists all templates and projects created with those templates
-* ``footing update`` - Updates the project to the latest template version
+* ``footing sync`` - Updates the project to the latest template version
 * ``footing clean`` - Cleans up any temporary resources used by footing
 * ``footing switch`` - Switch a project to a different template
 """
@@ -14,11 +15,12 @@ import click
 import pkg_resources
 
 import footing
+import footing.bootstrap
 import footing.clean
 import footing.exceptions
+import footing.init
 import footing.ls
-import footing.setup
-import footing.update
+import footing.sync
 
 
 def _parse_parameters(parameters):
@@ -45,6 +47,14 @@ def main(ctx, version):
 
 
 @main.command()
+def bootstrap():
+    """
+    Bootstraps footing's other dependencies
+    """
+    footing.bootstrap.bootstrap()
+
+
+@main.command()
 @click.argument("template", nargs=1, required=True)
 @click.option(
     "-v",
@@ -61,14 +71,14 @@ def main(ctx, version):
     help="Template parameters to inject. Will avoid prompting.",
 )
 @click.option("-d", "--dir", "cwd", default=None, help="Setup the project in this directory.")
-def setup(template, version, parameters, cwd):
+def init(template, version, parameters, cwd):
     """
-    Setup new project. Takes a git path to the template as returned
+    Initializes a project. Takes a git path to the template as returned
     by "footing ls". In order to start a project from a
     particular version (instead of the latest), use the "-v" option.
     """
     parameters = _parse_parameters(parameters)
-    footing.setup.setup(template, version=version, parameters=parameters, cwd=cwd)
+    footing.init.init(template, version=version, parameters=parameters, cwd=cwd)
 
 
 @main.command()
@@ -93,9 +103,9 @@ def setup(template, version, parameters, cwd):
     default=None,
     help="Template parmaeters to inject. Will avoid prompting.",
 )
-def update(check, enter_parameters, version, parameters):
+def sync(check, enter_parameters, version, parameters):
     """
-    Update package with latest template. Must be inside of the project
+    Synchronize project with latest template. Must be inside of the project
     folder to run.
 
     Using "-e" will prompt for re-entering the template parameters again
@@ -110,16 +120,16 @@ def update(check, enter_parameters, version, parameters):
     parameters = _parse_parameters(parameters)
 
     if check:
-        if footing.update.up_to_date(version=version):
+        if footing.sync.up_to_date(version=version):
             print("Footing project is up to date")
         else:
             msg = (
-                "This footing package is out of date with the latest template."
-                ' Update your package by running "footing update" and commiting changes.'
+                "This footing project is out of date with the latest template."
+                ' Synchronize your project by running "footing sync" and commiting changes.'
             )
             raise footing.exceptions.NotUpToDateWithTemplateError(msg)
     else:
-        footing.update.update(
+        footing.sync.sync(
             new_version=version, enter_parameters=enter_parameters, parameters=parameters
         )
 
@@ -153,7 +163,7 @@ def ls(url, long_format):
 @main.command()
 def clean():
     """
-    Cleans temporary resources created by footing, such as the footing update branch
+    Cleans temporary resources created by footing, such as the footing sync branch
     """
     footing.clean.clean()
 
@@ -170,4 +180,4 @@ def switch(template, version):
     """
     Switch a project's template to a different template.
     """
-    footing.update.update(new_template=template, new_version=version)
+    footing.sync.sync(new_template=template, new_version=version)

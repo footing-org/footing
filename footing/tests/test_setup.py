@@ -1,4 +1,4 @@
-"""Tests for footing.setup module"""
+"""Tests for footing.init module"""
 import os
 import subprocess
 
@@ -6,7 +6,7 @@ import pytest
 
 import footing.constants
 import footing.exceptions
-import footing.setup
+import footing.init
 
 
 @pytest.mark.parametrize(
@@ -17,7 +17,7 @@ import footing.setup
     ],
 )
 def test_setup(version, expected_revparse_called, expected_version, mocker):
-    """Tests footing.setup.setup_template"""
+    """Tests footing.init.init_template"""
     config = {"my": "config"}
     template = "git@github.com:user/template.git"
     mocker.patch("footing.check.not_in_git_repo", autospec=True)
@@ -29,7 +29,7 @@ def test_setup(version, expected_revparse_called, expected_version, mocker):
 
     revparse_return = subprocess.CompletedProcess([], stdout=b"latest_version", returncode=0)
     mock_generate_files = mocker.patch(
-        "footing.setup.cc_generate.generate_files",
+        "footing.init.cc_generate.generate_files",
         autospec=True,
         return_value=".",
     )
@@ -39,7 +39,7 @@ def test_setup(version, expected_revparse_called, expected_version, mocker):
         side_effect=[revparse_return, None, None, None, None, None],
     )
 
-    footing.setup.setup(template, version=version)
+    footing.init.init(template, version=version)
 
     mock_get_cc_config.assert_called_once_with(template, version=version)
     mock_generate_files.assert_called_once_with(
@@ -74,7 +74,7 @@ def test_generate_files(tmpdir):
     os.chmod("%s/post_gen_project.sh" % hooks_dir, 0o700)
 
     with footing.utils.cd(str(tmpdir)):
-        footing.setup._generate_files(
+        footing.init._generate_files(
             repo_dir=template_dir,
             config={"name": "project"},
             template="template",

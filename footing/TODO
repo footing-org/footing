@@ -8,3 +8,4 @@
 - Validation hooks
 - Infra hooks
 - Consider eliminating free-form hooks entirely
+- Dynamic default values in prompt from template

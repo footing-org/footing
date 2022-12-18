@@ -4,10 +4,10 @@ Footing Package
 ===============
 
 
-.. automodule:: footing.setup
+.. automodule:: footing.init
     :members:
 
-.. automodule:: footing.update
+.. automodule:: footing.sync
     :members:
 
 .. automodule:: footing.ls

@@ -1,8 +1,8 @@
 """
-footing.update
-~~~~~~~~~~~~~~
+footing.sync
+~~~~~~~~~~~~
 
-Updates a footing project with the latest template
+Synchronizes a footing project with the latest template
 """
 import json
 import os
@@ -118,8 +118,8 @@ def _needs_new_cc_config_for_update(old_template, old_version, new_template, new
         return _cookiecutter_configs_have_changed(new_template, old_version, new_version)
 
 
-@footing.utils.set_cmd_env_var("update")
-def update(
+@footing.utils.set_cmd_env_var("sync")
+def sync(
     old_template=None,
     old_version=None,
     new_template=None,
@@ -127,7 +127,7 @@ def update(
     enter_parameters=False,
     parameters=None,
 ):
-    """Updates the footing project to the latest template
+    """Synchronizes the footing project with the latest template
 
     Proceeeds in the following steps:
 
@@ -284,7 +284,7 @@ def update(
     print(
         textwrap.dedent(
             """\
-        Updating complete!
+        Synchronizing complete!
 
         Please review the changes with "git status" for any errors or
         conflicts. Once you are satisfied with the changes, add, commit,

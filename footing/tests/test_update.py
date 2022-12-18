@@ -1,22 +1,22 @@
-"""Tests for footing.update module"""
+"""Tests for footing.sync module"""
 import subprocess
 
 import pytest
 
 import footing.constants
 import footing.forge
-import footing.update
+import footing.sync
 
 
 def test_get_latest_template_version(mocker):
-    """Tests footing.update._get_latest_template_version"""
+    """Tests footing.sync._get_latest_template_version"""
     mocker.patch.object(
         footing.forge.Github,
         "get_latest_template_version",
         autospec=True,
         return_value="v1",
     )
-    assert footing.update._get_latest_template_version("git@github.com:org/template.git") == "v1"
+    assert footing.sync._get_latest_template_version("git@github.com:org/template.git") == "v1"
 
 
 @pytest.mark.parametrize(
@@ -29,14 +29,14 @@ def test_get_latest_template_version(mocker):
 def test_cookiecutter_configs_have_changed(
     old_config, new_config, expected_has_changed, mocker, responses
 ):
-    """Tests footing.update._cookiecutter_configs_have_changed"""
-    mock_clone = mocker.patch("footing.update.cc_vcs.clone", autospec=True, return_value="path")
-    mock_open = mocker.patch("footing.update.open")
+    """Tests footing.sync._cookiecutter_configs_have_changed"""
+    mock_clone = mocker.patch("footing.sync.cc_vcs.clone", autospec=True, return_value="path")
+    mock_open = mocker.patch("footing.sync.open")
     mock_open().read.side_effect = [old_config, new_config]
     mock_call = mocker.patch("subprocess.check_call", autospec=True)
     template = "git@github.com:org/template.git"
 
-    config_has_changed = footing.update._cookiecutter_configs_have_changed(template, "old", "new")
+    config_has_changed = footing.sync._cookiecutter_configs_have_changed(template, "old", "new")
     assert config_has_changed == expected_has_changed
     mock_clone.assert_called_once_with(template, "old", mocker.ANY)
     assert mock_call.call_count == 1
@@ -58,7 +58,7 @@ def test_apply_template(mocker, existing_files):
     mock_rmtree = mocker.patch("shutil.rmtree", autospec=True)
     mock_remove = mocker.patch("os.remove", autospec=True)
 
-    footing.update._apply_template("t", ".", checkout="v1", extra_context={"c": "tx"})
+    footing.sync._apply_template("t", ".", checkout="v1", extra_context={"c": "tx"})
 
     mock_cc.assert_called_once_with(
         "t",
@@ -94,7 +94,7 @@ def test_up_to_date(
     expected_up_to_date,
     mocker,
 ):
-    """Tests footing.update.up_to_date"""
+    """Tests footing.sync.up_to_date"""
     mocker.patch("footing.check.in_git_repo", autospec=True)
     mocker.patch("footing.check.in_clean_repo", autospec=True)
     mocker.patch("footing.check.is_footing_project", autospec=True)
@@ -104,12 +104,12 @@ def test_up_to_date(
         return_value=footing_config,
     )
     mocker.patch(
-        "footing.update._get_latest_template_version",
+        "footing.sync._get_latest_template_version",
         autospec=True,
         return_value=latest_version,
     )
 
-    assert footing.update.up_to_date(version=supplied_version) == expected_up_to_date
+    assert footing.sync.up_to_date(version=supplied_version) == expected_up_to_date
 
 
 @pytest.mark.parametrize(
@@ -120,7 +120,7 @@ def test_up_to_date(
     ],
 )
 def test_update_w_up_to_date(version, supplied_version, latest_version, mocker):
-    """Tests footing.update.update when the template is already up to date"""
+    """Tests footing.sync.sync when the template is already up to date"""
     mocker.patch("footing.check.not_has_branch", autospec=True)
     mocker.patch("footing.check.in_git_repo", autospec=True)
     mocker.patch("footing.check.in_clean_repo", autospec=True)
@@ -131,12 +131,12 @@ def test_update_w_up_to_date(version, supplied_version, latest_version, mocker):
         return_value={"_version": version, "_template": "t"},
     )
     mocker.patch(
-        "footing.update._get_latest_template_version",
+        "footing.sync._get_latest_template_version",
         autospec=True,
         return_value=latest_version,
     )
 
-    assert not footing.update.update(new_version=supplied_version)
+    assert not footing.sync.sync(new_version=supplied_version)
 
 
 @pytest.mark.parametrize(
@@ -159,7 +159,7 @@ def test_update_w_out_of_date(
     mocker,
     fs,
 ):
-    """Tests footing.update.update when the template is out of date"""
+    """Tests footing.sync.sync when the template is out of date"""
     template = "git@github.com:owner/repo.git"
     footing_config = {"_version": current_version, "_template": template}
     mocker.patch("footing.check.in_git_repo", autospec=True)
@@ -172,13 +172,13 @@ def test_update_w_out_of_date(
         return_value=footing_config,
     )
     mocker.patch(
-        "footing.update._get_latest_template_version",
+        "footing.sync._get_latest_template_version",
         autospec=True,
         return_value=latest_version,
     )
-    mock_apply_template = mocker.patch("footing.update._apply_template", autospec=True)
+    mock_apply_template = mocker.patch("footing.sync._apply_template", autospec=True)
     mock_cc_configs_have_changed = mocker.patch(
-        "footing.update._cookiecutter_configs_have_changed",
+        "footing.sync._cookiecutter_configs_have_changed",
         autospec=True,
         return_value=cc_configs_changed,
     )
@@ -191,7 +191,7 @@ def test_update_w_out_of_date(
     mock_shell = mocker.patch("footing.utils.shell", autospec=True)
     mock_write_config = mocker.patch("footing.utils.write_footing_config", autospec=True)
 
-    footing.update.update(enter_parameters=enter_parameters, old_template=old_template)
+    footing.sync.sync(enter_parameters=enter_parameters, old_template=old_template)
 
     assert mock_input.called == cc_configs_changed or old_template is not None
     assert mock_get_cc_config.called == (

@@ -1,8 +1,8 @@
 """
-footing.setup
+footing.init
 ~~~~~~~~~~~~~
 
-Creates and initializes a project from a template
+Initializes a project from a template
 """
 import contextlib
 import os
@@ -85,11 +85,11 @@ def _generate_files(repo_dir, config, template, version):
         )
 
 
-@footing.utils.set_cmd_env_var("setup")
-def setup(template, version=None, parameters=None, cwd=None):
-    """Sets up a new project from a template
+@footing.utils.set_cmd_env_var("init")
+def init(template, version=None, parameters=None, cwd=None):
+    """Initialize a new project from a template
 
-    Note that the `footing.constants.FOOTING_ENV_VAR` is set to 'setup' during the duration
+    Note that the `footing.constants.FOOTING_ENV_VAR` is set to 'init' during the duration
     of this function.
 
     Args:
