@@ -18,8 +18,8 @@ def ls(url):
     function.
 
     Args:
-        url (str): A Github organization (github.com/Organization), gitlab group (gitlab.com/my/group),
-            or template URL.
+        url (str): A Github organization (github.com/Organization),
+            gitlab group (gitlab.com/my/group), or template URL.
 
     Returns:
         dict: A dictionary of repository information keyed on the url.

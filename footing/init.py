@@ -113,7 +113,7 @@ def init(template, version=None, parameters=None, cwd=None):
                 )
                 version = ret.stdout.decode("utf-8").strip()
             except subprocess.CalledProcessError:
-                version = None  # For local templates with no git repo. TODO figure out how to handle this case
+                version = None  # For local templates with no git repo.
 
     with footing.utils.cd(cwd):
         _generate_files(repo_dir=cc_repo_dir, config=config, template=template, version=version)

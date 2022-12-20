@@ -2,20 +2,37 @@
 Concepts
 --------
 
-Project
-  - Github repo (used by terraform)
-  - Templates
+init - initialize a project, workspace, toolkit, or rack
+destroy - destroy a project, toolkit, or rack
+bootstrap - bootstrap any additional footing internal dependencies
+sync - sync project, toolkit, rack, or variables
+ls - list resources (casts, projects, toolkits, racks)
+run - run a command in a workspace
+set - set local configuration, such as the workspace
+package - package and deploy a project, toolkit, or workspace
 
-Legs
-  - Resources that host the project
-  - Can run legs locally or remotely using Terraform
+- These two commands might be the same
+shell - shell into an environment
+activate - activate an env
 
-Dependencies
-   - Can specify binaries
-   - Can point to pyproject, package.json, or provide a build script
 
-Variables/Env
-    - Can be used to create different flavors of legs
+# Core constructs that can have variables injected
+casts
+toolkits
+sheds
+racks
+projects (must have one repo defined)
+
+# Static constructs
+
+variables - secrets or other variables that can be used in casts, toolkits, racks
+workspaces - combination of tools, racks, variables
+
+--------
+Examples
+--------
+
+
 
 --------------
 Getting to MVP
@@ -31,3 +48,36 @@ Getting to MVP
 - Template that runs Django properly on DigitalOcean (or any other host) (stretch)
 - Template that can pull in changes like Celery (stretch)
 - Definition of a remote runner where you can easily run tests (stretch)
+
+
+
+
+In the cast:
+
+casts:
+  - key: django-project
+    dirs:
+      - {{ footing.project_name }}
+    parameters:
+      - label: blah
+        help_text: blah blah blah
+
+
+In the project:
+
+casts:
+  # Any additional casts the project might want to use internally
+  - key: django-app
+
+
+projects:
+  - key: hello-world
+    casts:
+      - url: gh://Opus10/private-django-app
+        key: django-project
+        version: 1.0
+        parameters:
+            hi: "hello"
+
+      - url: .
+        key: django-app

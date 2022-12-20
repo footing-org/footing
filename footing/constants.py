@@ -10,7 +10,7 @@ Constants for footing
 FOOTING_ENV_VAR = "_FOOTING"
 
 #: The footing config file in each repo
-FOOTING_CONFIG_FILE = ".footing/template.yaml"
+FOOTING_CONFIG_FILE = ".footing/config.yaml"
 
 #: The Github API token environment variable
 GITHUB_API_TOKEN_ENV_VAR = "GITHUB_API_TOKEN"

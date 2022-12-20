@@ -7,9 +7,6 @@ Currently Github and Gitlab are supported
 import abc
 import collections
 import os
-import re
-import subprocess
-from urllib.parse import urlparse
 
 import gitlab
 import gitlab.const
@@ -169,19 +166,21 @@ class Github(Forge):
 
     def ls(self, url):
         """Return a list of repositories under the forge path or the template (if provided)."""
-        unformatted_url = url
-        url = footing.utils.format_url(url)
-        url_parts = footing.utils.parse_url(url)
-        path_parts = url_parts.path.split("/")[1:]
+        url = footing.util.RepoURL(url)
+        url_parts = url.parsed()
+        path_parts = url_parts.path.strip("/").split("/")
 
         if not path_parts:
             raise ValueError(f"{url} has no Github org")
         elif len(path_parts) == 1:
-            search_q = f"user:{path_parts[0]} filename:cookiecutter.json"
+            search_q = f"user:{path_parts[0]} filename:{footing.constants.FOOTING_CONFIG_FILE}"
         elif len(path_parts) == 2:
-            search_q = f"user:{path_parts[0]} filename:{footing.constants.FOOTING_CONFIG_FILE} {url_parts.path}"
+            search_q = (
+                f"user:{path_parts[0]} filename:{footing.constants.FOOTING_CONFIG_FILE}"
+                f" {url_parts.path.strip('/')}"
+            )
         else:
-            raise ValueError(f"{unformatted_url} is an invalid Github repository URL")
+            raise ValueError(f"{url.unformatted()} is an invalid Github repository URL")
 
         results = self._code_search(search_q, forge=url)
         return collections.OrderedDict(
@@ -218,7 +217,8 @@ class Gitlab(Forge):
 
     def _get_gitlab_group(self, forge):
         """Given a forge, return a gitlab url and group"""
-        url_parts = parse_url(forge)
+        gitlab_url = footing.util.RepoURL(forge)
+        url_parts = gitlab_url.parsed()
         group = url_parts.path.strip("/")
 
         # If users are listing templates on gitlab.com and not a self-hosted gitlab,
@@ -238,38 +238,38 @@ class Gitlab(Forge):
         # and "projects"
         raise RuntimeError("Gitlab currently not supported for this operation")
 
-        gitlab_url, group = self._get_gitlab_group(forge)
+        # gitlab_url, group = self._get_gitlab_group(forge)
 
-        gl = self.get_client(forge)
-        if group:
-            # Search under a group if one is specified
-            gl = gl.groups.get(group)
+        # gl = self.get_client(forge)
+        # if group:
+        #     # Search under a group if one is specified
+        #     gl = gl.groups.get(group)
 
-        # Search for either templates (with cookiecutter.json) or projects that have been made
-        # from the template. Note - advanced search must be turned on for the Gitlab instance
-        if not template:
-            results = gl.search(
-                gitlab.const.SEARCH_SCOPE_BLOBS,
-                search="filename:cookiecutter.json",
-            )
-        else:
-            results = gl.search(
-                gitlab.const.SEARCH_SCOPE_BLOBS,
-                search="{} filename:footing.yaml".format(template),
-            )
+        # # Search for either templates (with cookiecutter.json) or projects that have been made
+        # # from the template. Note - advanced search must be turned on for the Gitlab instance
+        # if not template:
+        #     results = gl.search(
+        #         gitlab.const.SEARCH_SCOPE_BLOBS,
+        #         search="filename:cookiecutter.json",
+        #     )
+        # else:
+        #     results = gl.search(
+        #         gitlab.const.SEARCH_SCOPE_BLOBS,
+        #         search="{} filename:footing.yaml".format(template),
+        #     )
 
-        # Fetch projects associated with search results
-        gl = self.get_client(forge)
-        projects = [gl.projects.get(r["project_id"]) for r in results]
+        # # Fetch projects associated with search results
+        # gl = self.get_client(forge)
+        # projects = [gl.projects.get(r["project_id"]) for r in results]
 
-        return collections.OrderedDict(
-            sorted(
-                [
-                    (
-                        p.ssh_url_to_repo,
-                        p.description or "(no description found)",
-                    )
-                    for p in projects
-                ]
-            )
-        )
+        # return collections.OrderedDict(
+        #     sorted(
+        #         [
+        #             (
+        #                 p.ssh_url_to_repo,
+        #                 p.description or "(no description found)",
+        #             )
+        #             for p in projects
+        #         ]
+        #     )
+        # )

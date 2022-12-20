@@ -16,6 +16,7 @@ import pkg_resources
 
 import footing
 import footing.bootstrap
+import footing.cast
 import footing.clean
 import footing.exceptions
 import footing.init
@@ -78,7 +79,9 @@ def init(template, version, parameters, cwd):
     particular version (instead of the latest), use the "-v" option.
     """
     parameters = _parse_parameters(parameters)
-    footing.init.init(template, version=version, parameters=parameters, cwd=cwd)
+    cast = footing.cast.Cast.from_url(footing.util.RepoPath(template), version=version)
+    cast.init(version=version, parameters=parameters, cwd=cwd)
+    # footing.init.init(template, version=version, parameters=parameters, cwd=cwd)
 
 
 @main.command()
