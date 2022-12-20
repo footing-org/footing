@@ -4,7 +4,7 @@ Footing Package
 ===============
 
 
-.. automodule:: footing.init
+.. automodule:: footing.cast
     :members:
 
 .. automodule:: footing.sync

@@ -26,14 +26,14 @@ def mock_successful_exit(mock_exit):
 @pytest.mark.parametrize(
     "subcommand, args, expected_function, exp_call_args, exp_call_kwargs",
     [
-        ("setup", ["t"], "footing.init.init", ["t"], {"version": None}),
-        (
-            "setup",
-            ["t", "-v", "v1"],
-            "footing.init.init",
-            ["t"],
-            {"version": "v1"},
-        ),
+        # ("setup", ["t"], "footing.init.init", ["t"], {"version": None}),
+        # (
+        #     "setup",
+        #     ["t", "-v", "v1"],
+        #     "footing.init.init",
+        #     ["t"],
+        #     {"version": "v1"},
+        # ),
         (
             "update",
             [],

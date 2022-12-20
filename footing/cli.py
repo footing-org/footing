@@ -19,7 +19,6 @@ import footing.bootstrap
 import footing.cast
 import footing.clean
 import footing.exceptions
-import footing.init
 import footing.ls
 import footing.sync
 
@@ -81,7 +80,6 @@ def init(template, version, parameters, cwd):
     parameters = _parse_parameters(parameters)
     cast = footing.cast.Cast.from_url(footing.util.RepoPath(template), version=version)
     cast.init(version=version, parameters=parameters, cwd=cwd)
-    # footing.init.init(template, version=version, parameters=parameters, cwd=cwd)
 
 
 @main.command()

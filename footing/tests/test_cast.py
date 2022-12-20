@@ -1,4 +1,4 @@
-"""Tests for footing.init module"""
+"""Tests for footing.cast module"""
 import os
 import subprocess
 
