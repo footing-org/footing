@@ -4,71 +4,68 @@ footing.bootstrap
 
 Bootstraps footing's internal dependencies
 """
-import os
-import platform
+import pathlib
 import subprocess
-import tempfile
 
-import requests
-from tqdm import tqdm
+import click
 
 import footing.util
+import footing.version
 
 
 def bootstrap():
-    """Bootstraps footing's internal dependencies"""
+    """Bootstraps footing's internal dependencies and finalizes installation"""
+    footing_file_path = footing.version.metadata.distribution("footing").files[0]
+    site_packages_dir = pathlib.Path(
+        str(footing_file_path.locate())[: -len(str(footing_file_path))]
+    )
+    condabin_dir = site_packages_dir / ".." / ".." / ".." / "condabin"
 
-    os_name = platform.system()
-    os_name = "MacOSX" if os_name == "Darwin" else os_name
-    machine = platform.machine().lower().split(" ")[0]
-    machine = "x86_64" if machine == "amd64" else machine
-    arch = f"{os_name}-{machine}"
+    if not condabin_dir.exists():
+        raise RuntimeError("Footing is not installed properly. Please use the official installer")
 
-    if arch not in [
-        "MacOSX-arm64",
-        "Windows-x86_64",
-        "MacOSX-x86_64",
-        "Linux-x86_64",
-        "Linux-s390x",
-        "Linux-aarch64",
-        "Linux-ppc64le",
-    ]:
-        raise RuntimeError(f"{arch} not a supported architecture")
-
-    conda_ver = "4.14.0"
-    ext = "exe" if os_name == "Windows" else "sh"
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        # Miniconda installer
-        # url = (
-        #     f"https://repo.anaconda.com/miniconda/Miniconda3-{python_ver}_{conda_ver}-{arch}.{ext}"
-        # )
-
-        # Mambaforge installer
-        url = (
-            "https://github.com/conda-forge/miniforge/releases/download/"
-            f"{conda_ver}-2/Mambaforge-{conda_ver}-2-{arch}.{ext}"
+    if not str(condabin_dir).startswith(str(footing.util.conda_dir())):
+        raise RuntimeError(
+            "Footing is installed in the wrong location. Please use the official installer"
         )
-        filename = os.path.join(tmpdir, "miniconda_installer.sh")
 
-        if not os.path.exists(filename):
-            r = requests.get(url, stream=True)
-            with open(filename, "wb") as f:
-                pbar = tqdm(
-                    unit="B",
-                    unit_scale=True,
-                    unit_divisor=1024,
-                    total=int(r.headers["Content-Length"]),
-                )
-                for chunk in r.iter_content(chunk_size=1024):
-                    if chunk:  # filter out keep-alive new chunks
-                        pbar.update(len(chunk))
-                        f.write(chunk)
-                pbar.close()
+    # Footing needs git and terraform to run
+    footing.util.conda("install -n base git==2.39.0 terraform==1.3.5 -y")
 
-        conda_dir = footing.util.conda_dir()
-        run_cmd = f"{filename} -p {conda_dir} -b -u"
-        if os_name != "Windows":
-            run_cmd = f"sh {run_cmd}"
+    # Create soft links to global tools in the conda bin dir
+    with footing.util.cd(condabin_dir):
+        footing.util.shell(
+            "ln -sf ../bin/footing footing",
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        footing.util.shell(
+            "ln -sf ../bin/git git", check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        footing.util.shell(
+            "ln -sf ../bin/terraform terraform",
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
 
-        subprocess.run(run_cmd, shell=True)
+    click.echo(
+        click.style(
+            "Enter your password if prompted to install footing in /usr/local/bin/.",
+            fg="green",
+        )
+    )
+    footing.util.shell(
+        f"sudo ln -sf {footing.util.footing_exe()} /usr/local/bin/footing", check=False
+    )
+
+    click.echo(
+        click.style(
+            'Installation complete! Click "Enter" to run "footing shell" for the first time.',
+            fg="green",
+        )
+    )
+    input()
+
+    footing.util.shell(f"{footing.util.footing_exe()} shell")

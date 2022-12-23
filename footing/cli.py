@@ -1,15 +1,5 @@
 """
-The footing CLI contains commands for setting up, listing, and updating projects.
-
-Commands
-~~~~~~~~
-
-* ``footing bootstrap`` - Bootstrap footing's dependencies
-* ``footing init`` - Sets up a new project
-* ``footing ls`` - Lists all templates and projects created with those templates
-* ``footing sync`` - Updates the project to the latest template version
-* ``footing clean`` - Cleans up any temporary resources used by footing
-* ``footing switch`` - Switch a project to a different template
+The footing CLI.
 """
 import os
 import sys
@@ -58,7 +48,7 @@ def main(ctx, version, banner):
 @main.command()
 def bootstrap():
     """
-    Bootstraps footing's other dependencies
+    Bootstraps installation.
     """
     footing.bootstrap.bootstrap()
 
@@ -98,7 +88,7 @@ def toolkit_sync(key):
 @click.option("--active", is_flag=True)
 def toolkit_ls(active):
     """
-    List toolkits
+    List toolkits.
     """
     toolkits = footing.toolkit.ls(active=active)
     for toolkit in toolkits:
@@ -261,7 +251,7 @@ def cast_init(mold, version, parameters, cwd):
 )
 def set(toolkit):
     """
-    Sets workspace values
+    Sets workspace values.
     """
     footing.workspace.set(toolkit=toolkit)
 
@@ -274,7 +264,7 @@ def set(toolkit):
 )
 def unset(toolkit):
     """
-    Unsets workspace values
+    Unsets workspace values.
     """
     footing.workspace.unset(toolkit=toolkit)
 
@@ -282,7 +272,7 @@ def unset(toolkit):
 @main.command()
 def activate():
     """
-    Shell instructions for activating a workspace
+    Activate a workspace.
     """
     if not os.environ.get("_FOOTING_ACTIVATE"):
         click.echo('Run "footing shell" in order to activate workspaces', err=True)
@@ -302,6 +292,9 @@ def activate():
 
 @main.command()
 def shell():
+    """
+    Open a shell.
+    """
     shell = footing.shell.Shell.get()
     shell.init()
 
@@ -316,7 +309,7 @@ def shell():
     help="Toolkits to sync.",
 )
 def sync(toolkits):
-    """Synchronize a workspace"""
+    """Synchronize a workspace."""
     if toolkits:
         for key in toolkits:
             _toolkit_sync(key)

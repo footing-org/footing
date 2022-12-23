@@ -18,6 +18,10 @@ def conda_dir():
     return global_config_dir() / "conda"
 
 
+def footing_exe():
+    return conda_dir() / "bin" / "footing"
+
+
 def local_config_dir(base_dir=None):
     # TODO make this work even when the user is in a folder
     base_dir = base_dir or "."
@@ -43,15 +47,25 @@ def local_config(base_dir=None, create=False):
             return None
 
 
-def shell(cmd, check=True, stdin=None, stdout=None, stderr=None):
+def shell(cmd, check=True, stdin=None, stdout=None, stderr=None, env=None):
     """Runs a subprocess shell with check=True by default"""
-    return subprocess.run(cmd, shell=True, check=check, stdin=stdin, stdout=stdout, stderr=stderr)
+    if env:
+        env = {**os.environ, **env}
+
+    return subprocess.run(
+        cmd, shell=True, check=check, stdin=stdin, stdout=stdout, stderr=stderr, env=env
+    )
 
 
-def conda(cmd, check=True, stdin=None, stdout=None, stderr=None):
+def conda(cmd, check=True, stdin=None, stdout=None, stderr=None, env=None):
     """Runs a conda command based on footing's conda installation"""
+    env = env or {}
+    env["MAMBA_NO_BANNER"] = "1"
+
     conda_exec = conda_dir() / "bin" / "mamba"
-    return shell(f"{conda_exec} {cmd}", check=check, stdin=stdin, stdout=stdout, stderr=stderr)
+    return shell(
+        f"{conda_exec} {cmd}", check=check, stdin=stdin, stdout=stdout, stderr=stderr, env=env
+    )
 
 
 def conda_install(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None):
@@ -68,7 +82,7 @@ def conda_install(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=N
 def conda_run(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None):
     toolkit = footing.toolkit.get(toolkit) if isinstance(toolkit, str) else toolkit
     return conda(
-        f"run -n {toolkit.conda_env_name} {cmd}",
+        f"run -n {toolkit.conda_env_name} -- {cmd}",
         check=check,
         stdin=stdin,
         stdout=stdout,
