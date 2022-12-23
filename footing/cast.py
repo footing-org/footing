@@ -1,7 +1,6 @@
 import contextlib
 import dataclasses
 import os
-import pathlib
 import subprocess
 import unittest.mock
 
@@ -43,10 +42,11 @@ def _patched_find_template(repo_dir):
 
 def _write_footing_config(parameters, cast):
     """Writes the footing YAML configuration"""
-    pathlib.Path(footing.constants.FOOTING_CONFIG_FILE).parent.mkdir(parents=True, exist_ok=True)
+    config = footing.util.local_config(create=True)
+    config["casts"] = config.get("casts", [])
+    config["casts"].append(dataclasses.asdict(cast))
 
-    with open(footing.constants.FOOTING_CONFIG_FILE, "w") as config_file:
-        config = {"projects": [{"key": cast.key, "casts": [dataclasses.asdict(cast)]}]}
+    with open(footing.util.local_config_path(), "w") as config_file:
 
         def yaml_represent_str(self, data):
             return yaml.representer.SafeRepresenter.represent_str(
@@ -109,7 +109,7 @@ def _get_parameters(
             config = yaml.load(f, Loader=yaml.SafeLoader)
 
         # Get the parameters and format the keys so that formaldict can parse them
-        param_schema = config["casts"][0]["parameters"]
+        param_schema = config["molds"][0]["parameters"]
         for p in param_schema:
             p["name"] = p["label"]
             p["label"] = p["key"]
@@ -163,7 +163,7 @@ class Cast:
         if os.path.exists(config_file):
             with open(config_file) as f:
                 config = yaml.load(f, Loader=yaml.SafeLoader)
-                config = config["casts"][0]
+                config = config["molds"][0]
                 cast = cls(
                     key=config["key"],
                     url=url,

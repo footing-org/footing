@@ -18,18 +18,29 @@ def conda_dir():
     return global_config_dir() / "conda"
 
 
-def local_config_dir():
+def local_config_dir(base_dir=None):
     # TODO make this work even when the user is in a folder
-    return pathlib.Path(".footing")
+    base_dir = base_dir or "."
+    return pathlib.Path(base_dir) / ".footing"
 
 
-def local_config():
+def local_config_path(base_dir=None):
+    return local_config_dir(base_dir=base_dir) / "config.yml"
+
+
+def local_config(base_dir=None, create=False):
     """Return the config as a dict"""
+    config_path = local_config_path(base_dir=base_dir)
     try:
-        with open(local_config_dir() / "config.yml") as f:
+        with open(config_path) as f:
             return yaml.load(f, Loader=yaml.SafeLoader)
     except FileNotFoundError:
-        return None
+        if create:
+            config_path.parent.mkdir(exist_ok=True, parents=True)
+            open(config_path, "w").close()
+            return {}
+        else:
+            return None
 
 
 def shell(cmd, check=True, stdin=None, stdout=None, stderr=None):
