@@ -30,7 +30,7 @@ def bootstrap():
         )
 
     # Footing needs git and terraform to run
-    footing.util.conda("install -n base git==2.39.0 terraform==1.3.5 -y")
+    footing.util.conda("install -q -n base git==2.39.0 terraform==1.3.5 -y")
 
     # Create soft links to global tools in the conda bin dir
     with footing.util.cd(condabin_dir):
@@ -67,5 +67,3 @@ def bootstrap():
         )
     )
     input()
-
-    footing.util.shell(f"{footing.util.footing_exe()} shell")
