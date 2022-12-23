@@ -5,6 +5,7 @@
 ###
 
 conda_ver=22.9.0
+footing_ver=0.1.4
 mambaforge_patch=2
 
 if [ "$(uname)" == "Darwin" ]; then
@@ -35,9 +36,10 @@ sh $mamba_installer_file -p $HOME/.footing/conda -b -u
 # Install footing
 ###
 
-footing_package_url="install/footing.whl"
+footing_wheel="footing-${footing_ver}-py3-none-any.whl"
+footing_package_url="https://raw.githubusercontent.com/wesleykendall/footing/main/install/${footing_wheel}"
 footing_package_dir=$(mktemp -d)
-footing_package_file="$footing_package_dir/footing.whl"
+footing_package_file="$footing_package_dir/${footing_wheel}"
 curl -L $footing_package_url -o $footing_package_file --progress-bar
 $HOME/.footing/conda/bin/pip3 install $footing_package_file
 $HOME/.footing/conda/bin/footing bootstrap

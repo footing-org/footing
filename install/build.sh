@@ -6,4 +6,4 @@
 
 rm -rf dist
 poetry build
-mv dist/*.whl install/footing.whl
+cp dist/*.whl install/
