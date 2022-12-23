@@ -5,7 +5,7 @@
 ###
 
 conda_ver=22.9.0
-footing_ver=0.1.5
+footing_ver=0.1.6
 mambaforge_patch=2
 
 if [ "$(uname)" == "Darwin" ]; then

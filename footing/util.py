@@ -82,7 +82,7 @@ def conda_install(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=N
 def conda_run(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None):
     toolkit = footing.toolkit.get(toolkit) if isinstance(toolkit, str) else toolkit
     return conda(
-        f"run -n {toolkit.conda_env_name} -- {cmd}",
+        f"run -n {toolkit.conda_env_name} --live-stream bash -c '{cmd}'",
         check=check,
         stdin=stdin,
         stdout=stdout,
