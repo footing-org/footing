@@ -1,15 +1,68 @@
 from collections import UserString
 import contextlib
 import os
+import pathlib
 import subprocess
 from urllib.parse import urlparse
 
+import yaml
+
 import footing.constants
+
+
+def global_config_dir():
+    return pathlib.Path(os.path.expanduser("~")) / ".footing"
+
+
+def conda_dir():
+    return global_config_dir() / "conda"
+
+
+def local_config_dir():
+    # TODO make this work even when the user is in a folder
+    return pathlib.Path(".footing")
+
+
+def local_config():
+    """Return the config as a dict"""
+    try:
+        with open(local_config_dir() / "config.yml") as f:
+            return yaml.load(f, Loader=yaml.SafeLoader)
+    except FileNotFoundError:
+        return None
 
 
 def shell(cmd, check=True, stdin=None, stdout=None, stderr=None):
     """Runs a subprocess shell with check=True by default"""
     return subprocess.run(cmd, shell=True, check=check, stdin=stdin, stdout=stdout, stderr=stderr)
+
+
+def conda(cmd, check=True, stdin=None, stdout=None, stderr=None):
+    """Runs a conda command based on footing's conda installation"""
+    conda_exec = conda_dir() / "bin" / "mamba"
+    return shell(f"{conda_exec} {cmd}", check=check, stdin=stdin, stdout=stdout, stderr=stderr)
+
+
+def conda_install(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None):
+    toolkit = footing.toolkit.get(toolkit) if isinstance(toolkit, str) else toolkit
+    return conda(
+        f"install -n {toolkit.conda_env_name} {cmd}",
+        check=check,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+    )
+
+
+def conda_run(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None):
+    toolkit = footing.toolkit.get(toolkit) if isinstance(toolkit, str) else toolkit
+    return conda(
+        f"run -n {toolkit.conda_env_name} {cmd}",
+        check=check,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+    )
 
 
 @contextlib.contextmanager

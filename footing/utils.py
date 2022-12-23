@@ -17,14 +17,6 @@ import footing.constants
 import footing.exceptions
 
 
-def config_dir():
-    return pathlib.Path(os.path.expanduser("~")) / ".footing"
-
-
-def conda_dir():
-    return config_dir() / "conda"
-
-
 def format_url(url, auth=False):
     """
     Format a github or gitlab URL into an https path.

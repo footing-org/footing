@@ -11,6 +11,9 @@ Commands
 * ``footing clean`` - Cleans up any temporary resources used by footing
 * ``footing switch`` - Switch a project to a different template
 """
+import os
+import sys
+
 import click
 import pkg_resources
 
@@ -20,7 +23,10 @@ import footing.cast
 import footing.clean
 import footing.exceptions
 import footing.ls
+import footing.shell
 import footing.sync
+import footing.toolkit
+import footing.workspace
 
 
 def _parse_parameters(parameters):
@@ -39,9 +45,12 @@ def _parse_parameters(parameters):
 @click.group(invoke_without_command=True)
 @click.pass_context
 @click.option("--version", is_flag=True, help="Show version")
-def main(ctx, version):
+@click.option("--banner", is_flag=True, help="Print banner")
+def main(ctx, version, banner):
     if version:
         print("footing {}".format(pkg_resources.get_distribution("footing").version))
+    elif banner:
+        click.echo(footing.constants.BANNER["dollar"])
     elif not ctx.invoked_subcommand:
         print(ctx.get_help())
 
@@ -80,6 +89,87 @@ def init(template, version, parameters, cwd):
     parameters = _parse_parameters(parameters)
     cast = footing.cast.Cast.from_url(footing.util.RepoPath(template), version=version)
     cast.init(version=version, parameters=parameters, cwd=cwd)
+
+
+@main.command()
+@click.option(
+    "-t",
+    "--toolkit",
+    default=None,
+)
+def set(toolkit):
+    """
+    Sets workspace values
+    """
+    footing.workspace.set(toolkit=toolkit)
+
+
+@main.command()
+@click.option(
+    "-t",
+    "--toolkit",
+    is_flag=True,
+)
+def unset(toolkit):
+    """
+    Unsets workspace values
+    """
+    footing.workspace.unset(toolkit=toolkit)
+
+
+@main.command()
+def activate():
+    """
+    Shell instructions for activating a workspace
+    """
+    if not os.environ.get("_FOOTING_ACTIVATE"):
+        click.echo('Run "footing shell" in order to activate workspaces', err=True)
+        sys.exit(1)
+
+    config = footing.util.local_config()
+    if not config:
+        sys.exit(1)
+
+    workspace = footing.workspace.get()
+    if not workspace.toolkit:
+        click.echo("Set a default toolkit to activate it", err=True)
+        sys.exit(1)
+    else:
+        click.echo(workspace.toolkit.conda_env_name)
+
+
+@main.group()
+def toolkit():
+    """
+    Manage toolkits.
+    """
+    pass
+
+
+@toolkit.command("sync")
+@click.argument("key", nargs=1, required=False)
+def toolkit_sync(key):
+    """
+    Sync a toolkit.
+    """
+    footing.toolkit.get(key).sync()
+
+
+@toolkit.command("ls")
+@click.option("--active", is_flag=True)
+def toolkit_ls(active):
+    """
+    List toolkits
+    """
+    toolkits = footing.toolkit.ls(active=active)
+    for toolkit in toolkits:
+        click.echo(toolkit.key)
+
+
+@main.command()
+def shell():
+    shell = footing.shell.Shell.get()
+    shell.init()
 
 
 @main.command()

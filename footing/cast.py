@@ -61,7 +61,7 @@ def _write_footing_config(parameters, cast):
 def _patched_run_hook(hook_name, project_dir, context):
     """Used to patch cookiecutter's ``run_hook`` function.
 
-    This patched version ensures that the .footing/config.yaml file is created before
+    This patched version ensures that the .footing/config.yml file is created before
     any cookiecutter hooks are executed
     """
     if hook_name == "post_gen_project":
@@ -203,16 +203,18 @@ class Cast:
                 )
             )
 
+            cast = Materialized(
+                key=self.key, url=self.url, version=version or self.version, parameters=parameters
+            )
+
             cc_generate.generate_files(
                 repo_dir=repo_dir,
-                context={"cookiecutter": parameters, "footing": parameters, "cast": self},
+                context={"cookiecutter": parameters, "footing": parameters, "cast": cast},
                 overwrite_if_exists=False,
                 output_dir=".",
             )
 
-        return Materialized(
-            key=self.key, url=self.url, version=version or self.version, parameters=parameters
-        )
+            return cast
 
 
 @dataclasses.dataclass

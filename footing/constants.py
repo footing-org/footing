@@ -4,13 +4,33 @@ footing.constants
 
 Constants for footing
 """
+import textwrap
+
+
+BANNER = {
+    "dollar": textwrap.dedent(
+        r"""
+          /$$$$$$                      /$$     /$$
+         /$$__  $$                    | $$    |__/
+        | $$  \__//$$$$$$   /$$$$$$  /$$$$$$   /$$ /$$$$$$$   /$$$$$$
+        | $$$$   /$$__  $$ /$$__  $$|_  $$_/  | $$| $$__  $$ /$$__  $$
+        | $$_/  | $$  \ $$| $$  \ $$  | $$    | $$| $$  \ $$| $$  \ $$
+        | $$    | $$  | $$| $$  | $$  | $$ /$$| $$| $$  | $$| $$  | $$
+        | $$    |  $$$$$$/|  $$$$$$/  |  $$$$/| $$| $$  | $$|  $$$$$$$
+        |__/     \______/  \______/    \___/  |__/|__/  |__/ \____  $$
+                                                             /$$  \ $$
+                                                            |  $$$$$$/
+                                                             \______/
+        """
+    )
+}
 
 #: The environment variable set when running any footing command. It is set to
 #: the name of the command
 FOOTING_ENV_VAR = "_FOOTING"
 
 #: The footing config file in each repo
-FOOTING_CONFIG_FILE = ".footing/config.yaml"
+FOOTING_CONFIG_FILE = ".footing/config.yml"
 
 #: The Github API token environment variable
 GITHUB_API_TOKEN_ENV_VAR = "GITHUB_API_TOKEN"

@@ -12,7 +12,7 @@ import tempfile
 import requests
 from tqdm import tqdm
 
-import footing.utils
+import footing.util
 
 
 def bootstrap():
@@ -27,7 +27,6 @@ def bootstrap():
     if arch not in [
         "MacOSX-arm64",
         "Windows-x86_64",
-        "Windows-x86",
         "MacOSX-x86_64",
         "Linux-x86_64",
         "Linux-s390x",
@@ -36,13 +35,19 @@ def bootstrap():
     ]:
         raise RuntimeError(f"{arch} not a supported architecture")
 
-    python_ver = "py39"
-    conda_ver = "4.12.0"
+    conda_ver = "4.14.0"
     ext = "exe" if os_name == "Windows" else "sh"
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Miniconda installer
+        # url = (
+        #     f"https://repo.anaconda.com/miniconda/Miniconda3-{python_ver}_{conda_ver}-{arch}.{ext}"
+        # )
+
+        # Mambaforge installer
         url = (
-            f"https://repo.anaconda.com/miniconda/Miniconda3-{python_ver}_{conda_ver}-{arch}.{ext}"
+            "https://github.com/conda-forge/miniforge/releases/download/"
+            f"{conda_ver}-2/Mambaforge-{conda_ver}-2-{arch}.{ext}"
         )
         filename = os.path.join(tmpdir, "miniconda_installer.sh")
 
@@ -61,7 +66,7 @@ def bootstrap():
                         f.write(chunk)
                 pbar.close()
 
-        conda_dir = footing.utils.conda_dir()
+        conda_dir = footing.util.conda_dir()
         run_cmd = f"{filename} -p {conda_dir} -b -u"
         if os_name != "Windows":
             run_cmd = f"sh {run_cmd}"

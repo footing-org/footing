@@ -1,3 +1,12 @@
+Daily:
+
+- Install footing directly into conda to make env and terraform available
+- "footing use" will write to a local config file to make it easier to write a shell script
+
+
+Long term:
+
+
 - Use footing variable name instead of cookiecutter *
 - Use shortcuts when listing gh or gl repos *
 - Remove all SSH access *

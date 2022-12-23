@@ -1,3 +1,46 @@
+----------------
+Updated Concepts
+----------------
+
+footing
+    meta (root)
+        index - Index casts and projects
+
+    workspace (root)
+        init
+        set/use <name>
+
+    cast
+        set/use <name>
+    toolkit
+        set/use <name> - Activate a toolkit
+        sync <name> - Install or update tools
+    project
+        sync <name> - Sync with cast
+        set/use <name>
+
+
+
+repo - remote repo definition
+workspace - Canal backend (always one repo)
+
+molds - templates
+casts - creations from molds that can be synced
+
+toolkits - Prod (django, npm, node) / Dev (prod + webpack,debug-toolbar)
+variables - public and private variables that can be used anywhere, especially for private infra tokens
+
+builds - Django app libraries, Django server containers, webpack bundle, base dependencies container, Sphinx docs, poetry.lock
+registries - container, package, doc registries (pypi, devpi, conda, etc), buckets, storage, footing toolkit registry (block storage).
+
+tasks - Test suite, linting, versioning, tagging, packaging
+workflows - Stringing together tasks as DAGs, periodic tasks, or triggered tasks
+executors - Prod (AWS, Sentry), Local (docker), Machine (native + some docker), Private CI Runner (DB + runner), RemoteDev (DB + VM), Cron, Lambda
+
+
+Local workspace - local rack + dev toolkit
+
+
 --------
 Concepts
 --------
