@@ -62,8 +62,7 @@ def bootstrap():
 
     click.echo(
         click.style(
-            'Installation complete! Click "Enter" to run "footing shell" for the first time.',
+            'Installation complete! Run "footing shell" to use footing.',
             fg="green",
         )
     )
-    input()
