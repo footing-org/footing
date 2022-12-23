@@ -128,7 +128,7 @@ def format_url(url, auth=False):
     elif "gitlab.com" in url_parts.netloc:
         url_parts = url_parts._replace(netloc="gitlab.com")
 
-    if auth:
+    if auth and footing.constants.GITHUB_API_TOKEN_ENV_VAR in os.environ:
         url_parts = url_parts._replace(
             netloc=f"{os.environ[footing.constants.GITHUB_API_TOKEN_ENV_VAR]}@{url_parts.netloc}"
         )
