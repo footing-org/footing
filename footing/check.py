@@ -4,6 +4,7 @@ import subprocess
 
 import footing.constants
 import footing.exceptions
+import footing.util
 import footing.utils
 
 
@@ -21,7 +22,7 @@ def is_git_ssh_path(template_path):
 
 def _in_git_repo():
     """Returns True if inside a git repo, False otherwise"""
-    ret = footing.utils.shell("git rev-parse", stderr=subprocess.DEVNULL, check=False)
+    ret = footing.util.git("rev-parse", stderr=subprocess.DEVNULL, check=False)
     return ret.returncode == 0
 
 
@@ -41,7 +42,7 @@ def not_in_git_repo():
 
 def _in_clean_repo():
     """Returns True if the git repo is not dirty, False otherwise"""
-    ret = footing.utils.shell("git diff-index --quiet HEAD --", check=False)
+    ret = footing.util.git("diff-index --quiet HEAD --", check=False)
     return ret.returncode == 0
 
 
@@ -54,8 +55,8 @@ def in_clean_repo():
 
 def _has_branch(branch):
     """Return True if the target branch exists."""
-    ret = footing.utils.shell(
-        "git rev-parse --verify {}".format(branch),
+    ret = footing.util.git(
+        f"rev-parse --verify {branch}",
         stderr=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         check=False,

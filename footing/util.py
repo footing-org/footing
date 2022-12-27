@@ -22,6 +22,10 @@ def footing_exe():
     return conda_dir() / "bin" / "footing"
 
 
+def git_exe():
+    return conda_dir() / "bin" / "git"
+
+
 def local_config_dir(base_dir=None):
     # TODO make this work even when the user is in a folder
     base_dir = base_dir or "."
@@ -47,28 +51,28 @@ def local_config(base_dir=None, create=False):
             return None
 
 
-def shell(cmd, check=True, stdin=None, stdout=None, stderr=None, env=None):
+def shell(cmd, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
     """Runs a subprocess shell with check=True by default"""
     if env:
         env = {**os.environ, **env}
 
     return subprocess.run(
-        cmd, shell=True, check=check, stdin=stdin, stdout=stdout, stderr=stderr, env=env
+        cmd, shell=True, check=check, stdin=stdin, stdout=stdout, stderr=stderr, env=env, cwd=cwd
     )
 
 
-def conda(cmd, check=True, stdin=None, stdout=None, stderr=None, env=None):
+def conda(cmd, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
     """Runs a conda command based on footing's conda installation"""
     env = env or {}
     env["MAMBA_NO_BANNER"] = "1"
 
     conda_exec = conda_dir() / "bin" / "mamba"
     return shell(
-        f"{conda_exec} {cmd}", check=check, stdin=stdin, stdout=stdout, stderr=stderr, env=env
+        f"{conda_exec} {cmd}", check=check, stdin=stdin, stdout=stdout, stderr=stderr, env=env, cwd=cwd
     )
 
 
-def conda_install(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None):
+def conda_install(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None, cwd=None):
     toolkit = footing.toolkit.get(toolkit) if isinstance(toolkit, str) else toolkit
     return conda(
         f"install -n {toolkit.conda_env_name} {cmd}",
@@ -76,10 +80,11 @@ def conda_install(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=N
         stdin=stdin,
         stdout=stdout,
         stderr=stderr,
+        cwd=cwd
     )
 
 
-def conda_run(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None):
+def conda_run(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None, cwd=None):
     toolkit = footing.toolkit.get(toolkit) if isinstance(toolkit, str) else toolkit
     return conda(
         f"run -n {toolkit.conda_env_name} --live-stream bash -c '{cmd}'",
@@ -87,7 +92,19 @@ def conda_run(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None)
         stdin=stdin,
         stdout=stdout,
         stderr=stderr,
+        cwd=cwd
     )
+
+
+def git(cmd, check=True, stdin=None, stdout=None, stderr=None, cwd=None):
+    """Run a git command.
+
+    Tries to directly use the conda-managed git installation first
+    """
+    git_exe = git_exe() if os.path.exists(git_exe()) else "git"
+
+    # TODO: Use "conda run"
+    return shell(f"{git_exe} {cmd}", check=check, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
 
 
 @contextlib.contextmanager

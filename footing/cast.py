@@ -139,8 +139,8 @@ def _get_parameters(
 def _get_latest_sha(repo_dir):
     with footing.util.cd(repo_dir):
         try:
-            ret = footing.util.shell(
-                "git rev-parse HEAD", stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            ret = footing.util.git(
+                "rev-parse HEAD", stdout=subprocess.PIPE, stderr=subprocess.PIPE
             )
             return ret.stdout.decode("utf-8").strip()
         except subprocess.CalledProcessError:

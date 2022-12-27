@@ -17,6 +17,7 @@ import cookiecutter.vcs as cc_vcs
 import footing.check
 import footing.constants
 import footing.forge
+import footing.util
 import footing.utils
 
 
@@ -38,10 +39,9 @@ def _cookiecutter_configs_have_changed(template, old_version, new_version):
         template = footing.utils.format_url(template, auth=True)
         repo_dir = cc_vcs.clone(template, old_version, clone_dir)
         old_config = json.load(open(os.path.join(repo_dir, "cookiecutter.json")))
-        subprocess.check_call(
-            "git checkout %s" % new_version,
+        footing.util.git(
+            f"checkout {new_version}",
             cwd=repo_dir,
-            shell=True,
             stderr=subprocess.PIPE,
         )
         new_config = json.load(open(os.path.join(repo_dir, "cookiecutter.json")))
@@ -193,32 +193,32 @@ def sync(
         return False
 
     print("Creating branch {} for processing the update".format(update_branch))
-    footing.utils.shell("git checkout -b {}".format(update_branch), stderr=subprocess.DEVNULL)
+    footing.util.git(f"checkout -b {update_branch}", stderr=subprocess.DEVNULL)
 
     print("Creating temporary working branch {}".format(temp_update_branch))
-    footing.utils.shell(
-        "git checkout --orphan {}".format(temp_update_branch),
+    footing.util.git(
+        f"checkout --orphan {temp_update_branch}",
         stderr=subprocess.DEVNULL,
     )
-    footing.utils.shell("git rm -rf .", stdout=subprocess.DEVNULL)
+    footing.util.git(f"rm -rf .", stdout=subprocess.DEVNULL)
     _apply_template(old_template, ".", checkout=old_version, extra_context=footing_config)
-    footing.utils.shell("git add .")
-    footing.utils.shell(
-        'git commit --no-verify -m "Initialize template from version {}"'.format(old_version),
+    footing.util.git(f"add .")
+    footing.util.git(
+        f'commit --no-verify -m "Initialize template from version {old_version}"',
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
     print("Merge old template history into update branch.")
-    footing.utils.shell("git checkout {}".format(update_branch), stderr=subprocess.DEVNULL)
-    footing.utils.shell(
-        "git merge -s ours --no-edit --allow-unrelated-histories {}".format(temp_update_branch),
+    footing.util.git(f"checkout {update_branch}", stderr=subprocess.DEVNULL)
+    footing.util.git(
+        f"merge -s ours --no-edit --allow-unrelated-histories {temp_update_branch}",
         stderr=subprocess.DEVNULL,
     )
 
     print("Update template in temporary branch.")
-    footing.utils.shell("git checkout {}".format(temp_update_branch), stderr=subprocess.DEVNULL)
-    footing.utils.shell("git rm -rf .", stdout=subprocess.DEVNULL)
+    footing.util.git(f"checkout {temp_update_branch}", stderr=subprocess.DEVNULL)
+    footing.util.git(f"rm -rf .", stdout=subprocess.DEVNULL)
 
     # If the cookiecutter.json files have changed or the templates have changed,
     # the user will need to re-enter the cookiecutter config
@@ -252,32 +252,32 @@ def sync(
     _apply_template(new_template, ".", checkout=new_version, extra_context=footing_config)
     footing.utils.write_footing_config(footing_config, new_template, new_version)
 
-    footing.utils.shell("git add .")
-    footing.utils.shell(
-        'git commit --no-verify -m "Update template to version {}"'.format(new_version),
+    footing.util.git("add .")
+    footing.util.git(
+        f'commit --no-verify -m "Update template to version {new_version}"',
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
     print("Merge updated template into update branch.")
-    footing.utils.shell("git checkout {}".format(update_branch), stderr=subprocess.DEVNULL)
-    footing.utils.shell(
-        "git merge --no-commit {}".format(temp_update_branch),
+    footing.util.git(f"checkout {update_branch}", stderr=subprocess.DEVNULL)
+    footing.util.git(
+        f"merge --no-commit {temp_update_branch}",
         check=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
     # The footing.yaml file should always reflect what is in the new template
-    footing.utils.shell(
-        "git checkout --theirs {}".format(footing.constants.FOOTING_CONFIG_FILE),
+    footing.util.git(
+        f"checkout --theirs {footing.constants.FOOTING_CONFIG_FILE}",
         check=False,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
     print("Remove temporary template branch {}".format(temp_update_branch))
-    footing.utils.shell(
-        "git branch -D {}".format(temp_update_branch),
+    footing.util.git(
+        f"branch -D {temp_update_branch}",
         stdout=subprocess.DEVNULL,
     )
 
