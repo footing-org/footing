@@ -20,7 +20,7 @@ def install_dir():
 
 
 def conda_dir():
-    return install_dir() / "conda"
+    return install_dir() / "toolkits"
 
 
 def condabin_dir(check=False):
