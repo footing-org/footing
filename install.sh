@@ -50,7 +50,7 @@ $mamba_prefix/bin/pip3 install --upgrade --force-reinstall $footing_package_file
 
 if [ -z "$FOOTING_BOOTSTRAP_DISABLE_SYSTEM" ]
 then
-    $mamba_prefix/bin/footing bootstrap
-else
     $mamba_prefix/bin/footing bootstrap --system
+else
+    $mamba_prefix/bin/footing bootstrap
 fi
