@@ -12,6 +12,7 @@ import footing.bootstrap
 import footing.cast
 import footing.clean
 import footing.exceptions
+import footing.job
 import footing.ls
 import footing.shell
 import footing.sync
@@ -46,11 +47,12 @@ def main(ctx, version, banner):
 
 
 @main.command()
-def bootstrap():
+@click.option("--system", is_flag=True, help="Install footing in /usr/local/bin")
+def bootstrap(system):
     """
     Bootstraps installation.
     """
-    footing.bootstrap.bootstrap()
+    footing.bootstrap.bootstrap(system=system)
 
 
 ###
@@ -93,6 +95,27 @@ def toolkit_ls(active):
     toolkits = footing.toolkit.ls(active=active)
     for toolkit in toolkits:
         click.echo(toolkit.key)
+
+
+###
+# Jobs
+###
+
+@main.group()
+def job():
+    """
+    Manage and run jobs.
+    """
+    pass
+
+
+@job.command("run")
+@click.argument("key", nargs=1, required=True)
+def job_run(key):
+    """
+    Run a job.
+    """
+    footing.job.get(key).run()
 
 
 ###

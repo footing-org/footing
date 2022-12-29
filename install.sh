@@ -1,11 +1,14 @@
 #!/bin/sh
 set -e
 
+default_footing_prefix=$HOME/.footing
+footing_prefix="${PREFIX:-default_footing_prefix}" 
+
 ###
 # Install mambaforge
 ###
 
-conda_ver=22.9.0
+mamba_ver=22.9.0
 footing_ver=0.1.7
 mambaforge_patch=2
 
@@ -27,20 +30,27 @@ case $(uname -m) in
         exit 2
 esac
 
-mamba_installer_url=https://github.com/conda-forge/miniforge/releases/download/${conda_ver}-${mambaforge_patch}/Mambaforge-${conda_ver}-${mambaforge_patch}-${mamba_platform}-${mamba_arch}.sh
+mamba_prefix=$footing_prefix/toolkits
+mamba_installer_url=https://github.com/conda-forge/miniforge/releases/download/$mamba_ver-$mambaforge_patch/Mambaforge-$mamba_ver-$mambaforge_patch-$mamba_platform-$mamba_arch.sh
 mamba_installer_dir=$(mktemp -d)
 mamba_installer_file="$mamba_installer_dir/install.sh"
 curl -L $mamba_installer_url -o $mamba_installer_file --progress-bar
-sh $mamba_installer_file -p $HOME/.footing/conda -b -u
+sh $mamba_installer_file -p $mamba_prefix -b -u
 
 ###
 # Install footing
 ###
 
-footing_wheel="footing-${footing_ver}-py3-none-any.whl"
-footing_package_url="https://raw.githubusercontent.com/wesleykendall/footing/main/${footing_wheel}"
+footing_wheel="footing-$footing_ver-py3-none-any.whl"
+footing_package_url="https://raw.githubusercontent.com/wesleykendall/footing/main/$footing_wheel"
 footing_package_dir=$(mktemp -d)
-footing_package_file="$footing_package_dir/${footing_wheel}"
+footing_package_file="$footing_package_dir/$footing_wheel"
 curl -L $footing_package_url -o $footing_package_file --progress-bar
-$HOME/.footing/conda/bin/pip3 install --upgrade --force-reinstall $footing_package_file
-$HOME/.footing/conda/bin/footing bootstrap
+$mamba_prefix/bin/pip3 install --upgrade --force-reinstall $footing_package_file
+
+if [ -z "$FOOTING_BOOTSTRAP_DISABLE_SYSTEM" ]
+then
+    $mamba_prefix/bin/footing bootstrap
+else
+    $mamba_prefix/bin/footing bootstrap --system
+fi

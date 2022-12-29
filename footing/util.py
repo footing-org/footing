@@ -8,14 +8,28 @@ from urllib.parse import urlparse
 import yaml
 
 import footing.constants
+import footing.version
 
 
-def global_config_dir():
-    return pathlib.Path(os.path.expanduser("~")) / ".footing"
+def install_dir():
+    footing_file_path = footing.version.metadata.distribution("footing").files[0]
+    site_packages_dir = pathlib.Path(
+        str(footing_file_path.locate())[: -len(str(footing_file_path))]
+    )
+    return site_packages_dir / ".." / ".." / ".." / ".."
 
 
 def conda_dir():
-    return global_config_dir() / "conda"
+    return install_dir() / "conda"
+
+
+def condabin_dir(check=False):
+    condabin_dir = conda_dir() / "condabin"
+
+    if check and not condabin_dir.exists():
+        raise RuntimeError("Footing is not installed properly. Please use the official installer")
+
+    return condabin_dir
 
 
 def footing_exe():
