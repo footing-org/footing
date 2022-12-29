@@ -2,7 +2,7 @@
 set -e
 
 default_footing_prefix=$HOME/.footing
-footing_prefix="${PREFIX:-default_footing_prefix}" 
+footing_prefix="${PREFIX:-$default_footing_prefix}" 
 
 ###
 # Install mambaforge
