@@ -27,6 +27,7 @@ def condabin_dir(check=False):
     condabin_dir = conda_dir() / "condabin"
 
     if check and not condabin_dir.exists():
+        print('condabin dir', condabin_dir, install_dir(), conda_dir())
         raise RuntimeError("Footing is not installed properly. Please use the official installer")
 
     return condabin_dir
