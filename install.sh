@@ -57,7 +57,19 @@ footing_wheel="footing-$footing_ver-py3-none-any.whl"
 footing_package_url="https://raw.githubusercontent.com/wesleykendall/footing/main/$footing_wheel"
 footing_package_dir=$(mktemp -d)
 footing_package_file="$footing_package_dir/$footing_wheel"
-curl -L $footing_package_url -o $footing_package_file --progress-bar
+
+if command -v curl &> /dev/null
+then
+    curl -L $footing_package_url -o $footing_package_file --progress-bar
+elif command -v python3 &> /dev/null
+then
+    printf "Downloading footing wheel..."
+    python3 -c "import urllib.request; urllib.request.urlretrieve('$footing_package_url', '$footing_package_file')"
+else
+    printf "Need curl or python3 to complete installation\\n"
+    exit 2
+fi
+
 $mamba_prefix/bin/pip3 install --upgrade --force-reinstall $footing_package_file
 
 if [ -z "$FOOTING_BOOTSTRAP_DISABLE_SYSTEM" ]
