@@ -47,7 +47,10 @@ else
     exit 2
 fi
 
-sh $mamba_installer_file -p $mamba_prefix -b -u
+if [ -z "$FOOTING_INSTALL_SKIP_MAMBA" ]
+then
+    sh $mamba_installer_file -p $mamba_prefix -b -u
+fi
 
 ###
 # Install footing
@@ -72,7 +75,7 @@ fi
 
 $mamba_prefix/bin/pip3 install --upgrade --force-reinstall $footing_package_file
 
-if [ -z "$FOOTING_BOOTSTRAP_DISABLE_SYSTEM" ]
+if [ -z "$FOOTING_BOOTSTRAP_SKIP_SYSTEM" ]
 then
     $mamba_prefix/bin/footing bootstrap --system
 else
