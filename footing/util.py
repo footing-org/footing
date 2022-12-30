@@ -90,7 +90,7 @@ def conda(cmd, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=N
 def conda_install(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None, cwd=None):
     toolkit = footing.toolkit.get(toolkit) if isinstance(toolkit, str) else toolkit
     return conda(
-        f"install -n {toolkit.conda_env_name} {cmd}",
+        f"install -n {toolkit.conda_env_name} -y {cmd}",
         check=check,
         stdin=stdin,
         stdout=stdout,
