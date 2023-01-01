@@ -29,7 +29,10 @@ def bootstrap(system=False):
             stderr=subprocess.PIPE,
         )
         footing.util.shell(
-            "ln -sf ../bin/git git", check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            "ln -sf ../bin/git git",
+            check=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         footing.util.shell(
             "ln -sf ../bin/terraform terraform",
@@ -46,7 +49,8 @@ def bootstrap(system=False):
             )
         )
         footing.util.shell(
-            f"sudo ln -sf {footing.util.footing_exe()} /usr/local/bin/footing", check=False
+            f"sudo ln -sf {footing.util.footing_exe()} /usr/local/bin/footing",
+            check=False,
         )
 
     click.echo(

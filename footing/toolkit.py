@@ -1,42 +1,85 @@
+import contextlib
 import dataclasses
+import pathlib
+import shutil
+import tempfile
 import typing
+import unittest.mock
+
+import conda_lock.conda_lock
+from conda_lock.src_parser import environment_yaml, pyproject_toml, LockSpecification
 
 import footing.util
 
 
 @dataclasses.dataclass
 class Toolset:
+    manager: str
     tools: list = dataclasses.field(default_factory=list)
-    manager: str = "mamba"
     file: str = None
 
     def __post_init__(self):
-        if self.manager not in ["poetry", "pip", "mamba"]:
+        if self.manager not in ["conda", "pip"]:
             raise ValueError(f"Unsupported manager '{self.manager}'")
 
-    def mamba_sync(self, *, toolkit):
-        # TODO: Support environment.yml files
-        footing.util.conda_install(" ".join(self.tools) + " -y", toolkit=toolkit)
+        if not self.tools and not self.file:
+            raise ValueError("Must provide a list of tools or a file for toolkit")
 
-    def poetry_sync(self, *, toolkit):
-        footing.util.conda_run("poetry lock --no-update && poetry install", toolkit=toolkit)
+        if self.file and self.file not in (
+            "pyproject.toml",
+            "environment.yaml",
+            "environment.yml",
+        ):
+            raise ValueError(f"Unsupported file '{self.file}'")
 
-    def pip_sync(self, *, toolkit):
-        if self.tools:
-            footing.util.conda_run("pip install " + " ".join(self.tools), toolkit=toolkit)
-        elif self.file:
-            footing.util.conda_run("pip install -r " + self.file)
+    @property
+    def dependency_spec(self):
+        """Generate the dependency specification"""
+        if self.file == "pyproject.toml":
+            # For now, assume users aren't using conda-lock and ensure pyproject
+            # requirements are always installed with pip.
+            # TODO: Detect if using conda-lock and let conda-lock do its
+            # pip->conda translation magic
 
-    def sync(self, *, toolkit):
-        """Syncs the toolset"""
-        if self.manager == "mamba":
-            return self.mamba_sync(toolkit=toolkit)
-        if self.manager == "pip":
-            return self.pip_sync(toolkit=toolkit)
-        if self.manager == "poetry":
-            return self.poetry_sync(toolkit=toolkit)
+            with unittest.mock.patch(
+                "conda_lock.src_parser.pyproject_toml.normalize_pypi_name",
+                side_effect=lambda name: name,
+            ):
+                spec = pyproject_toml.parse_pyproject_toml(pathlib.Path(self.file))
+        elif self.file in ("environment.yaml", "environment.yml"):
+            spec = environment_yaml.parse_environment_file(pathlib.Path(self.file))
         else:
-            raise AssertionError(f"Unsupported manager '{self.manager}'")
+            spec = LockSpecification(
+                channels=[],
+                dependencies=[
+                    pyproject_toml.parse_python_requirement(
+                        tool,
+                        manager=self.manager,
+                        normalize_name=False,
+                    )
+                    for tool in self.tools
+                ],
+                platforms=[],
+                sources=[],
+            )
+
+        for dep in spec.dependencies:
+            dep.name = dep.name.lower().strip()
+            dep.manager = self.manager if dep.name not in ("python", "pip") else "conda"
+
+            if not spec.channels and dep.manager == "conda":
+                dep.conda_channel = dep.conda_channel or "conda-forge"
+
+        spec.sources = []
+        return spec
+
+    @classmethod
+    def from_def(cls, toolset):
+        return cls(
+            tools=toolset.get("tools", []),
+            manager=toolset["manager"],
+            file=toolset.get("file"),
+        )
 
 
 @dataclasses.dataclass
@@ -44,6 +87,14 @@ class Toolkit:
     key: str
     toolsets: typing.List[Toolset] = dataclasses.field(default_factory=list)
     base: typing.Optional["Toolkit"] = None
+    platforms: typing.List[str] = dataclasses.field(default_factory=list)
+
+    def __post_init__(self):
+        self.platforms = self.platforms or ["osx-arm64", "osx-64", "linux-64"]
+
+    @property
+    def uri(self):
+        return f"toolkit:{self.key}"
 
     @property
     def conda_env_name(self):
@@ -56,26 +107,29 @@ class Toolkit:
 
         return name
 
-    def __post_init__(self):
-        self.flattened_toolsets = []
+    @property
+    def flattened_toolsets(self):
+        """Generate a flattened list of all toolsets"""
+        toolsets = []
         if self.base:
-            self.flattened_toolsets.extend(self.base.flattened_toolsets)
+            toolsets.extend(self.base.flattened_toolsets)
 
-        self.flattened_toolsets.extend(self.toolsets)
+        toolsets.extend(self.toolsets)
+
+        return toolsets
+
+    @property
+    def dependency_specs(self):
+        """Return dependency specs from all toolsets"""
+        return [toolset.dependency_spec for toolset in self.flattened_toolsets]
 
     @classmethod
     def from_def(cls, toolkit):
         toolsets = []
         if toolkit.get("toolsets"):
-            toolsets.extend([Toolset(tools=toolset["tools"]) for toolset in toolkit["toolsets"]])
+            toolsets.extend([Toolset.from_def(toolset) for toolset in toolkit["toolsets"]])
         else:
-            toolsets.extend(
-                [
-                    Toolset(
-                        **{key: val for key, val in toolkit.items() if key in ("manager", "tools")}
-                    )
-                ]
-            )
+            toolsets.extend([Toolset.from_def(toolkit)])
 
         return cls(
             key=toolkit["key"],
@@ -110,11 +164,50 @@ class Toolkit:
 
         return cls.from_key(key)
 
+    @property
+    def lock_file(self):
+        return footing.util.locks_dir() / f"{self.uri}.yml"
+
+    def lock(self):
+        def _parse_source_files(*args, **kwargs):
+            return self.dependency_specs
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                unittest.mock.patch(
+                    "conda_lock.conda_lock.parse_source_files",
+                    side_effect=_parse_source_files
+                )
+            )
+            stack.enter_context(unittest.mock.patch("sys.exit"))
+
+            # Retrieve the lookup table since it's patched
+            pyproject_toml.get_lookup()
+
+            # Run the actual locking function
+            footing.util.locks_dir().mkdir(exist_ok=True, parents=True)
+            lock_args = [
+                "--lockfile",
+                str(self.lock_file),
+                "--mamba",
+                "--strip-auth",
+                "--conda",
+                str(footing.util.condabin_dir() / "mamba"),
+            ]
+            for platform in self.platforms:
+                lock_args.extend(["-p", platform])
+
+            conda_lock.conda_lock.lock(lock_args)
+
     def sync(self):
-        # TODO: Don't re-create the env every time
-        footing.util.conda(f"create -n {self.conda_env_name} -y")
-        for toolset in self.flattened_toolsets:
-            toolset.sync(toolkit=self)
+        self.lock()
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch("sys.exit"))
+            tmpdir = stack.enter_context(tempfile.TemporaryDirectory())
+            tmp_lock_file = pathlib.Path(tmpdir) / "conda-lock.yml"
+            shutil.copy(str(self.lock_file), str(tmp_lock_file))
+            conda_lock.conda_lock.install(["--name", str(self.key), str(tmp_lock_file)])
 
 
 def get(key=None):

@@ -27,7 +27,7 @@ def condabin_dir(check=False):
     condabin_dir = conda_dir() / "condabin"
 
     if check and not condabin_dir.exists():
-        print('condabin dir', condabin_dir, install_dir(), conda_dir())
+        print("condabin dir", condabin_dir, install_dir(), conda_dir())
         raise RuntimeError("Footing is not installed properly. Please use the official installer")
 
     return condabin_dir
@@ -45,6 +45,10 @@ def local_config_dir(base_dir=None):
     # TODO make this work even when the user is in a folder
     base_dir = base_dir or "."
     return pathlib.Path(base_dir) / ".footing"
+
+
+def locks_dir():
+    return local_config_dir() / "locks"
 
 
 def local_config_path(base_dir=None):
@@ -72,7 +76,14 @@ def shell(cmd, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=N
         env = {**os.environ, **env}
 
     return subprocess.run(
-        cmd, shell=True, check=check, stdin=stdin, stdout=stdout, stderr=stderr, env=env, cwd=cwd
+        cmd,
+        shell=True,
+        check=check,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        env=env,
+        cwd=cwd,
     )
 
 
@@ -83,7 +94,13 @@ def conda(cmd, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=N
 
     conda_exec = conda_dir() / "bin" / "mamba"
     return shell(
-        f"{conda_exec} {cmd}", check=check, stdin=stdin, stdout=stdout, stderr=stderr, env=env, cwd=cwd
+        f"{conda_exec} {cmd}",
+        check=check,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        env=env,
+        cwd=cwd,
     )
 
 
@@ -95,7 +112,7 @@ def conda_install(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=N
         stdin=stdin,
         stdout=stdout,
         stderr=stderr,
-        cwd=cwd
+        cwd=cwd,
     )
 
 
@@ -107,7 +124,7 @@ def conda_run(cmd, *, toolkit, check=True, stdin=None, stdout=None, stderr=None,
         stdin=stdin,
         stdout=stdout,
         stderr=stderr,
-        cwd=cwd
+        cwd=cwd,
     )
 
 
@@ -119,7 +136,14 @@ def git(cmd, check=True, stdin=None, stdout=None, stderr=None, cwd=None):
     git_exe = git_exe() if os.path.exists(git_exe()) else "git"
 
     # TODO: Use "conda run"
-    return shell(f"{git_exe} {cmd}", check=check, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
+    return shell(
+        f"{git_exe} {cmd}",
+        check=check,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        cwd=cwd,
+    )
 
 
 @contextlib.contextmanager

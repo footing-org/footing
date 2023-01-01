@@ -246,7 +246,10 @@ def sync(
     # can still re-enter config parameters with the "enter_parameters" flag
     if needs_new_cc_config or enter_parameters:
         _, footing_config = footing.utils.get_cookiecutter_config(
-            new_template, default_config=footing_config, version=new_version, parameters=parameters
+            new_template,
+            default_config=footing_config,
+            version=new_version,
+            parameters=parameters,
         )
 
     _apply_template(new_template, ".", checkout=new_version, extra_context=footing_config)

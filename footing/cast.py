@@ -83,7 +83,10 @@ def _get_cast_repo_dir(url, version=None):
 
 
 def _get_parameters(
-    url: footing.util.RepoURL, default_parameters=None, version=None, supplied_parameters=None
+    url: footing.util.RepoURL,
+    default_parameters=None,
+    version=None,
+    supplied_parameters=None,
 ):
     """Obtains the configuration used for cookiecutter templating
 
@@ -187,14 +190,17 @@ class Cast:
         perform any actions involving footing.yaml
         """
         parameters, repo_dir = _get_parameters(
-            url=self.url, version=version or self.version, supplied_parameters=parameters
+            url=self.url,
+            version=version or self.version,
+            supplied_parameters=parameters,
         )
 
         with contextlib.ExitStack() as stack:
             stack.enter_context(footing.util.cd(cwd or os.getcwd()))
             stack.enter_context(
                 unittest.mock.patch(
-                    "cookiecutter.generate.find_template", side_effect=_patched_find_template
+                    "cookiecutter.generate.find_template",
+                    side_effect=_patched_find_template,
                 )
             )
             stack.enter_context(
@@ -204,12 +210,19 @@ class Cast:
             )
 
             cast = Materialized(
-                key=self.key, url=self.url, version=version or self.version, parameters=parameters
+                key=self.key,
+                url=self.url,
+                version=version or self.version,
+                parameters=parameters,
             )
 
             cc_generate.generate_files(
                 repo_dir=repo_dir,
-                context={"cookiecutter": parameters, "footing": parameters, "cast": cast},
+                context={
+                    "cookiecutter": parameters,
+                    "footing": parameters,
+                    "cast": cast,
+                },
                 overwrite_if_exists=False,
                 output_dir=".",
             )
