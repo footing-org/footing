@@ -1,5 +1,7 @@
 import contextlib
+import copy
 import dataclasses
+import hashlib
 import pathlib
 import shutil
 import tempfile
@@ -7,8 +9,11 @@ import typing
 import unittest.mock
 
 import conda_lock.conda_lock
-from conda_lock.src_parser import environment_yaml, pyproject_toml, LockSpecification
+from conda_lock.src_parser import environment_yaml, LockSpecification, pyproject_toml
+import yaml
 
+import footing.build
+import footing.ref
 import footing.util
 
 
@@ -88,9 +93,27 @@ class Toolkit:
     toolsets: typing.List[Toolset] = dataclasses.field(default_factory=list)
     base: typing.Optional["Toolkit"] = None
     platforms: typing.List[str] = dataclasses.field(default_factory=list)
+    _def: dict = None
 
     def __post_init__(self):
         self.platforms = self.platforms or ["osx-arm64", "osx-64", "linux-64"]
+
+    @property
+    def ref(self):
+        definitions = [
+            yaml.dump(toolkit._def, Dumper=yaml.SafeDumper) for toolkit in self.flattened_toolkits
+        ]
+        files = [toolset.file for toolset in self.flattened_toolsets if toolset.file]
+
+        h = hashlib.sha256()
+        for definition in definitions:
+            h.update(definition.encode("utf-8"))
+
+        for file in files:
+            with open(file, "rb") as f:
+                h.update(f.read())
+
+        return h.hexdigest()
 
     @property
     def uri(self):
@@ -108,9 +131,21 @@ class Toolkit:
         return name
 
     @property
+    def flattened_toolkits(self):
+        """Generate a flattened list of all toolkits"""
+        toolkits = []
+        if self.base:
+            toolkits.extend(self.base.flattened_toolkits)
+
+        toolkits.extend([self])
+
+        return toolkits
+
+    @property
     def flattened_toolsets(self):
         """Generate a flattened list of all toolsets"""
         toolsets = []
+
         if self.base:
             toolsets.extend(self.base.flattened_toolsets)
 
@@ -121,7 +156,31 @@ class Toolkit:
     @property
     def dependency_specs(self):
         """Return dependency specs from all toolsets"""
-        return [toolset.dependency_spec for toolset in self.flattened_toolsets]
+        specs = [toolset.dependency_spec for toolset in self.flattened_toolsets]
+        dependencies = (dependency for spec in specs for dependency in spec.dependencies)
+
+        python_dep = pip_dep = None
+        has_pip_dependencies = False
+        for dependency in dependencies:
+            if dependency.name == "python":
+                python_dep = dependency
+            elif dependency.name == "pip":
+                pip_dep = dependency
+
+            if dependency.manager == "pip":
+                has_pip_dependencies = True
+
+        # If python exists and we have pip dependencies without pip, install pip
+        if python_dep and not pip_dep and has_pip_dependencies:
+            pip_dep = copy.deepcopy(python_dep)
+            pip_dep.name = "pip"
+            pip_dep.version = "22.3.1"
+
+            specs.extend(
+                [LockSpecification(channels=[], dependencies=[pip_dep], platforms=[], sources=[])]
+            )
+
+        return specs
 
     @classmethod
     def from_def(cls, toolkit):
@@ -135,6 +194,7 @@ class Toolkit:
             key=toolkit["key"],
             toolsets=toolsets,
             base=Toolkit.from_key(toolkit["base"]) if toolkit.get("base") else None,
+            _def=toolkit,
         )
 
     @classmethod
@@ -175,8 +235,7 @@ class Toolkit:
         with contextlib.ExitStack() as stack:
             stack.enter_context(
                 unittest.mock.patch(
-                    "conda_lock.conda_lock.parse_source_files",
-                    side_effect=_parse_source_files
+                    "conda_lock.conda_lock.parse_source_files", side_effect=_parse_source_files
                 )
             )
             stack.enter_context(unittest.mock.patch("sys.exit"))
@@ -199,15 +258,34 @@ class Toolkit:
 
             conda_lock.conda_lock.lock(lock_args)
 
-    def sync(self):
-        self.lock()
+    def install(self):
+        ref = self.ref
 
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch("sys.exit"))
-            tmpdir = stack.enter_context(tempfile.TemporaryDirectory())
-            tmp_lock_file = pathlib.Path(tmpdir) / "conda-lock.yml"
-            shutil.copy(str(self.lock_file), str(tmp_lock_file))
-            conda_lock.conda_lock.install(["--name", str(self.key), str(tmp_lock_file)])
+        if ref != footing.ref.get(self.uri) or not self.lock_file.exists():
+            # We need to re-compute the lock
+            self.lock()
+
+        build = footing.build.get(self.uri)
+        if not build or build.ref != ref:
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(unittest.mock.patch("sys.exit"))
+                tmpdir = stack.enter_context(tempfile.TemporaryDirectory())
+                tmp_lock_file = pathlib.Path(tmpdir) / "conda-lock.yml"
+                shutil.copy(str(self.lock_file), str(tmp_lock_file))
+                conda_lock.conda_lock.install(
+                    ["--name", str(self.conda_env_name), str(tmp_lock_file)]
+                )
+
+            # TODO: Do this operation atomically with a locked file
+            footing.build.set(
+                self.uri,
+                footing.build.Build(
+                    uri=self.uri,
+                    ref=ref,
+                    path=footing.util.conda_dir() / "envs" / self.conda_env_name,
+                ),
+            )
+            footing.ref.set(self.uri, ref)
 
 
 def get(key=None):

@@ -33,6 +33,14 @@ def condabin_dir(check=False):
     return condabin_dir
 
 
+def builds_dir():
+    return install_dir() / "builds"
+
+
+def artifacts_dir():
+    return install_dir() / "artifacts"
+
+
 def footing_exe():
     return conda_dir() / "bin" / "footing"
 
@@ -53,6 +61,10 @@ def locks_dir():
 
 def local_config_path(base_dir=None):
     return local_config_dir(base_dir=base_dir) / "config.yml"
+
+
+def local_refs_path(base_dir=None):
+    return local_config_dir(base_dir=base_dir) / "refs.yml"
 
 
 def local_config(base_dir=None, create=False):
@@ -133,11 +145,11 @@ def git(cmd, check=True, stdin=None, stdout=None, stderr=None, cwd=None):
 
     Tries to directly use the conda-managed git installation first
     """
-    git_exe = git_exe() if os.path.exists(git_exe()) else "git"
+    git_path = git_exe() if os.path.exists(git_exe()) else "git"
 
     # TODO: Use "conda run"
     return shell(
-        f"{git_exe} {cmd}",
+        f"{git_path} {cmd}",
         check=check,
         stdin=stdin,
         stdout=stdout,

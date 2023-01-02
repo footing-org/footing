@@ -1,5 +1,4 @@
 import dataclasses
-import typing
 
 import footing.toolkit
 import footing.util

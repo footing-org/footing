@@ -8,6 +8,7 @@ import click
 import pkg_resources
 
 import footing
+import footing.artifact
 import footing.bootstrap
 import footing.cast
 import footing.clean
@@ -60,13 +61,13 @@ def bootstrap(system):
 ###
 
 
-def _toolkit_sync(key=None):
+def _toolkit_install(key=None):
     if key:
-        footing.toolkit.get(key).sync()
+        footing.toolkit.get(key).install()
     else:
         workspace = footing.workspace.get()
         if workspace.toolkit:
-            workspace.toolkit.sync()
+            workspace.toolkit.install()
 
 
 @main.group()
@@ -77,13 +78,13 @@ def toolkit():
     pass
 
 
-@toolkit.command("sync")
+@toolkit.command("install")
 @click.argument("key", nargs=1, required=False)
-def toolkit_sync(key):
+def toolkit_install(key):
     """
-    Sync a toolkit.
+    Install a toolkit.
     """
-    _toolkit_sync(key)
+    _toolkit_install(key)
 
 
 @toolkit.command("ls")
@@ -95,6 +96,28 @@ def toolkit_ls(active):
     toolkits = footing.toolkit.ls(active=active)
     for toolkit in toolkits:
         click.echo(toolkit.key)
+
+
+###
+# Artifacts
+###
+
+
+@main.group()
+def artifact():
+    """
+    Manage artifacts.
+    """
+    pass
+
+
+@artifact.command("build")
+@click.argument("key", nargs=1)
+def artifact_build(key):
+    """
+    Sync an artifact.
+    """
+    footing.artifact.get(key).build()
 
 
 ###
@@ -330,12 +353,12 @@ def shell():
     "toolkits",
     multiple=True,
     default=None,
-    help="Toolkits to sync.",
+    help="Toolkits to install.",
 )
-def sync(toolkits):
-    """Synchronize a workspace."""
+def install(toolkits):
+    """Install a workspace."""
     if toolkits:
         for key in toolkits:
-            _toolkit_sync(key)
+            _toolkit_install(key)
     else:
-        _toolkit_sync()
+        _toolkit_install()

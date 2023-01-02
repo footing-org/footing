@@ -4,7 +4,6 @@ footing.bootstrap
 
 Bootstraps footing's internal dependencies
 """
-import pathlib
 import subprocess
 
 import click
@@ -18,7 +17,10 @@ def bootstrap(system=False):
     condabin_dir = footing.util.condabin_dir(check=True)
 
     # Footing needs git and terraform to run
-    footing.util.conda("install -q -n base git==2.39.0 terraform==1.3.5 -y")
+    footing.util.conda(
+        "install -q -n base"
+        " git==2.39.0 terraform==1.3.5 conda-lock==1.3.0 conda-pack==0.7.0 squashfs-tools==4.4 -y"
+    )
 
     # Create soft links to global tools in the conda bin dir
     with footing.util.cd(condabin_dir):

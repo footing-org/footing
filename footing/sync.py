@@ -200,9 +200,9 @@ def sync(
         f"checkout --orphan {temp_update_branch}",
         stderr=subprocess.DEVNULL,
     )
-    footing.util.git(f"rm -rf .", stdout=subprocess.DEVNULL)
+    footing.util.git("rm -rf .", stdout=subprocess.DEVNULL)
     _apply_template(old_template, ".", checkout=old_version, extra_context=footing_config)
-    footing.util.git(f"add .")
+    footing.util.git("add .")
     footing.util.git(
         f'commit --no-verify -m "Initialize template from version {old_version}"',
         stdout=subprocess.DEVNULL,
@@ -218,7 +218,7 @@ def sync(
 
     print("Update template in temporary branch.")
     footing.util.git(f"checkout {temp_update_branch}", stderr=subprocess.DEVNULL)
-    footing.util.git(f"rm -rf .", stdout=subprocess.DEVNULL)
+    footing.util.git("rm -rf .", stdout=subprocess.DEVNULL)
 
     # If the cookiecutter.json files have changed or the templates have changed,
     # the user will need to re-enter the cookiecutter config
