@@ -19,6 +19,18 @@ def install_dir():
     return site_packages_dir / ".." / ".." / ".." / ".."
 
 
+def local_cache_dir():
+    # Keep the local cache per installation for now in order to support multiple installations
+    # one day. We may revisit this later
+    return install_dir()
+
+
+def repo_cache_dir(base_dir=None):
+    # TODO make this work even when the user is in a folder
+    base_dir = base_dir or "."
+    return pathlib.Path(base_dir) / ".footing"
+
+
 def conda_dir():
     return install_dir() / "toolkits"
 
@@ -49,22 +61,16 @@ def git_exe():
     return conda_dir() / "bin" / "git"
 
 
-def local_config_dir(base_dir=None):
-    # TODO make this work even when the user is in a folder
-    base_dir = base_dir or "."
-    return pathlib.Path(base_dir) / ".footing"
-
-
 def locks_dir():
-    return local_config_dir() / "locks"
+    return repo_cache_dir() / "locks"
 
 
 def local_config_path(base_dir=None):
-    return local_config_dir(base_dir=base_dir) / "config.yml"
+    return repo_cache_dir(base_dir=base_dir) / "config.yml"
 
 
 def local_refs_path(base_dir=None):
-    return local_config_dir(base_dir=base_dir) / "refs.yml"
+    return repo_cache_dir(base_dir=base_dir) / "refs.yml"
 
 
 def local_config(base_dir=None, create=False):

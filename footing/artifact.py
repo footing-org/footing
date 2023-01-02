@@ -8,10 +8,15 @@ import footing.util
 
 @dataclasses.dataclass
 class Artifact:
-    key: str
+    name: str
     kind: str
+    ref: str
     toolkit: footing.toolkit.Toolkit = None
     _def: dict = None
+
+    @property
+    def key(self):
+        return f"{self.kind}:{self.name}"
 
     @classmethod
     def from_def(cls, artifact):

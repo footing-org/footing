@@ -7,7 +7,7 @@ import footing.util
 
 
 def workspace_path():
-    return footing.util.local_config_dir() / ".workspace.yml"
+    return footing.util.repo_cache_dir() / ".workspace.yml"
 
 
 @dataclasses.dataclass
