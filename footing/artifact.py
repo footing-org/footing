@@ -11,6 +11,26 @@ import footing.toolkit
 import footing.util
 
 
+def build_squash_fs(artifact):
+     with tempfile.TemporaryDirectory() as tmp_dir:
+        output_path = pathlib.Path(tmp_dir) / f"{artifact.key}.squashfs"
+        conda_pack.pack(
+            name=artifact.toolkit.conda_env_name,
+            output=str(output_path),
+            ignore_missing_files=True,
+        )
+
+        return local_registry.push(
+            footing.build.Build(
+                ref=ref, name=artifact.name, kind=artifact.kind, path=output_path
+            )
+        )
+
+
+def build_image(artifact):
+    pass
+
+
 @dataclasses.dataclass
 class Artifact:
     name: str
@@ -58,19 +78,9 @@ class Artifact:
                 self.toolkit.install()
 
             if self.kind == "squashfs":
-                with tempfile.TemporaryDirectory() as tmp_dir:
-                    output_path = pathlib.Path(tmp_dir) / f"{self.key}.squashfs"
-                    conda_pack.pack(
-                        name=self.toolkit.conda_env_name,
-                        output=str(output_path),
-                        ignore_missing_files=True,
-                    )
-
-                    package = local_registry.push(
-                        footing.build.Build(
-                            ref=ref, name=self.name, kind=self.kind, path=output_path
-                        )
-                    )
+                package = build_squash_fs(artifact)
+            elif self.kind == "image":
+                package = build_image(artifact)
             else:
                 raise ValueError(f"Invalid kind - '{self.kind}'")
 
