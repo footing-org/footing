@@ -16,11 +16,20 @@ def bootstrap(system=False):
     """Bootstraps footing's internal dependencies and finalizes installation"""
     condabin_dir = footing.util.condabin_dir(check=True)
 
-    # Footing needs git and terraform to run
-    footing.util.conda(
-        "install -q -n base"
-        " git==2.39.0 terraform==1.3.5 conda-lock==1.3.0 conda-pack==0.7.0 squashfs-tools==4.4 -y"
-    )
+    base_libraries = [
+        "git==2.39.0",
+        "conda-lock==1.3.0",
+        "conda-pack==0.7.0",
+        "squashfs-tools==4.4"
+    ]
+    all_libraries = base_libraries + ["terraform==1.3.5"]
+
+    try:
+        # Try to install all libraries at first.
+        footing.util.conda("install -q -n base -y " + " ".join(all_libraries))
+    except Exception:
+        # Some architectures don't support terraform, so ignore it for now
+        footing.util.conda("install -q -n base -y " + " ".join(base_libraries))
 
     # Create soft links to global tools in the conda bin dir
     with footing.util.cd(condabin_dir):
