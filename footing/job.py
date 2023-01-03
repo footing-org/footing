@@ -17,7 +17,12 @@ class Job:
 
     @classmethod
     def from_def(cls, job):
-        return cls(name=job["name"], cmd=job["cmd"], toolkit=footing.toolkit.get(job.get("toolkit")), _def=job)
+        return cls(
+            name=job["name"],
+            cmd=job["cmd"],
+            toolkit=footing.toolkit.get(job.get("toolkit")),
+            _def=job,
+        )
 
     @classmethod
     def from_name(cls, name):

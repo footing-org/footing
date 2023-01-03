@@ -53,6 +53,7 @@ python = ">=3.7.0,<4"
 importlib_metadata = { version = ">=4", python = "~3.7" }
 click = ">=6.7"
 cookiecutter = "<2.0.0"
+dirhash = ">=0.2.1"
 formaldict = ">=1.0.5"
 pexpect = ">=4.8.0"
 pyyaml = ">=3.12"

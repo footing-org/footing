@@ -2,8 +2,11 @@ import dataclasses
 import hashlib
 import pathlib
 import tempfile
+import textwrap
 
 import conda_pack
+import dirhash
+import docker
 import yaml
 
 import footing.registry
@@ -21,7 +24,7 @@ def build_packed_toolkit(artifact):
             name=artifact.toolkit.conda_env_name,
             output=str(output_path),
             ignore_missing_files=True,
-            filters=[("exclude", "*__pycache__*")]
+            filters=[("exclude", "*__pycache__*")],
         )
 
         return local_registry.push(
@@ -32,7 +35,58 @@ def build_packed_toolkit(artifact):
 
 
 def build_image(artifact):
-    pass
+    local_registry = footing.registry.local()
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        docker_file_path = pathlib.Path(tmp_dir) / "Dockerfile"
+        with docker_file_path.open("w") as docker_file:
+            entry = ""
+            if artifact.entry:
+                entry = "ENTRYPOINT [" + ", ".join([f'"{val}"' for val in artifact.entry]) + "]"
+
+            docker_file.write(
+                textwrap.dedent(
+                    f"""
+                    FROM wesleykendall/footing AS builder
+
+                    COPY . /project
+                    WORKDIR /project
+
+                    RUN footing toolkit install {artifact.toolkit.name}
+                    RUN conda-pack \
+                        --name {artifact.toolkit.conda_env_name} \
+                        --output /tmp/packed.tar.gz \
+                        --ignore-missing-files \
+                        --exclude "*__pycache__*"
+
+                    RUN mkdir /env
+
+                    RUN tar -xzf /tmp/packed.tar.gz -C /env
+
+                    SHELL ["/bin/bash", "-c"]
+                    RUN /env/bin/conda-unpack
+
+                    FROM alpine
+                    RUN apk add gcompat
+                    ENV PATH=/env/bin:$PATH
+                    WORKDIR /code
+                    COPY {artifact.code} /code
+                    COPY --from=builder /env /env
+                    {entry}
+                    """
+                )
+            )
+
+        with docker_file_path.open("rb") as docker_file:
+            client = docker.from_env()
+            image, _ = client.images.build(path=".", dockerfile=docker_file_path)
+
+        return local_registry.push(
+            footing.build.Build(
+                ref=artifact.ref, name=artifact.name, kind=artifact.kind, path=str(image.id)
+            ),
+            copy=False,
+        )
 
 
 @dataclasses.dataclass
@@ -40,6 +94,8 @@ class Artifact:
     name: str
     kind: str
     toolkit: footing.toolkit.Toolkit = None
+    code: str = "."
+    entry: str = None
     _def: dict = None
 
     @property
@@ -48,9 +104,17 @@ class Artifact:
 
     @classmethod
     def from_def(cls, artifact):
-        toolkit = footing.toolkit.get(artifact["toolkit"]) if artifact.get("toolkit") else None
+        kwargs = {
+            **artifact,
+            **{
+                "toolkit": footing.toolkit.get(artifact["toolkit"])
+                if artifact.get("toolkit")
+                else None,
+                "_def": artifact,
+            },
+        }
 
-        return cls(name=artifact["name"], kind=artifact["kind"], toolkit=toolkit, _def=artifact)
+        return cls(**kwargs)
 
     @classmethod
     def from_name(cls, name):
@@ -67,6 +131,12 @@ class Artifact:
 
         h = hashlib.sha256()
         h.update(definition.encode("utf-8"))
+
+        if self.code:
+            h.update(dirhash.dirhash(self.code, "sha256").encode("utf-8"))
+
+        if self.entry:
+            h.update(self.entry.encode("utf-8"))
 
         if self.toolkit:
             h.update(self.toolkit.ref.encode("utf-8"))

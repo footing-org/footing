@@ -1,6 +1,7 @@
 import dataclasses
 import pathlib
 
+import docker
 import yaml
 
 import footing.build
@@ -117,12 +118,14 @@ class FileSystemRegistry(Registry):
             self._index = {}
 
     def exists(self, build):
-        return self.resolve(build.path).exists()
+        if build.kind == "image":
+            client = docker.from_env()
+            return client.images.get(str(build.path)) is not None
+        else:
+            return self.resolve(build.path).exists()
 
     def push(self, build, copy=True):
         assert build.path
-        if copy and build.path.is_dir():
-            raise ValueError("Cannot copy directories")
 
         package_name = self.package_name(kind=build.kind, name=build.name, ref=build.ref)
 
@@ -131,7 +134,7 @@ class FileSystemRegistry(Registry):
                 kind=build.kind,
                 name=build.name,
                 ref=build.ref,
-                path=build.path.resolve() if not copy else package_name,
+                path=build.path if not copy else package_name,
             ),
             registry=self,
         )
@@ -148,9 +151,6 @@ class FileSystemRegistry(Registry):
 
     def pull(self, build, output_path):
         src = self.resolve(build.path)
-
-        if src.is_dir():
-            raise ValueError("Cannot pull directories")
 
         footing.util.copy_file(src, output_path)
 
@@ -194,6 +194,6 @@ def get(name):
     elif name == "repo":
         return repo()
 
+
 def ls():
     return [local(), repo()]
-

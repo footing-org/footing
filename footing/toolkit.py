@@ -99,7 +99,10 @@ class Toolkit:
         return f"toolkit:{self.name}"
 
     def __post_init__(self):
-        self.platforms = self.platforms or ["osx-arm64", "linux-aarch64"]  # , "osx-64", "linux-64"]
+        self.platforms = self.platforms or [
+            "osx-arm64",
+            "linux-aarch64",
+        ]  # , "osx-64", "linux-64"]
 
     @property
     def ref(self):
@@ -295,7 +298,7 @@ class Toolkit:
 
             toolkit_package = local_registry.push(
                 footing.build.Build(
-                    path=footing.util.conda_dir() / "envs" / self.conda_env_name,
+                    path=(footing.util.conda_dir() / "envs" / self.conda_env_name).resolve(),
                     **toolkit_build_kwargs,
                 ),
                 copy=False,
