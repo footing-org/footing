@@ -1,7 +1,12 @@
 import dataclasses
+import hashlib
+import pathlib
+import tempfile
 
 import conda_pack
+import yaml
 
+import footing.registry
 import footing.toolkit
 import footing.util
 
@@ -10,7 +15,6 @@ import footing.util
 class Artifact:
     name: str
     kind: str
-    ref: str
     toolkit: footing.toolkit.Toolkit = None
     _def: dict = None
 
@@ -20,33 +24,59 @@ class Artifact:
 
     @classmethod
     def from_def(cls, artifact):
-        toolkit = footing.toolkit.get(artifact["toolkit"])
+        toolkit = footing.toolkit.get(artifact["toolkit"]) if artifact.get("toolkit") else None
 
-        return cls(key=artifact["key"], kind=artifact["kind"], toolkit=toolkit, _def=toolkit)
+        return cls(name=artifact["name"], kind=artifact["kind"], toolkit=toolkit, _def=artifact)
 
     @classmethod
     def from_key(cls, key):
         config = footing.util.local_config()
 
         for artifact in config["artifacts"]:
-            if artifact["key"] == key:
+            if artifact["name"] == key:
                 return cls.from_def(artifact)
 
+    @property
+    def ref(self):
+        definition = yaml.dump(self._def, Dumper=yaml.SafeDumper)
+
+        h = hashlib.sha256()
+        h.update(definition.encode("utf-8"))
+
+        if self.toolkit:
+            h.update(self.toolkit.ref.encode("utf-8"))
+
+        return h.hexdigest()
+
     def build(self):
-        artifacts_dir = footing.util.artifacts_dir()
-        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        ref = self.ref
+        local_registry = footing.registry.local()
+        package = local_registry.find(kind=self.kind, name=self.name, ref=ref)
+        if not package:
+            if self.toolkit:
+                # TODO: Force re-install in the case someone modified the toolkit locally
+                self.toolkit.install()
 
-        if self.kind == "squashfs":
-            output_file = artifacts_dir / f"{self.key}.squashfs"
-            conda_pack.pack(
-                name=self.toolkit.conda_env_name,
-                output=str(output_file),
-                ignore_missing_files=True,
-            )
+            if self.kind == "squashfs":
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    output_path = pathlib.Path(tmp_dir) / f"{self.key}.squashfs"
+                    conda_pack.pack(
+                        name=self.toolkit.conda_env_name,
+                        output=str(output_path),
+                        ignore_missing_files=True,
+                    )
 
-        else:
-            raise ValueError(f"Invalid kind - '{self.kind}'")
+                    package = local_registry.push(
+                        footing.build.Build(
+                            ref=ref, name=self.name, kind=self.kind, path=output_path
+                        )
+                    )
+            else:
+                raise ValueError(f"Invalid kind - '{self.kind}'")
+
+        return package
 
 
 def get(key):
+    # TODO: Change this function to look up on kind/name
     return Artifact.from_key(key)
