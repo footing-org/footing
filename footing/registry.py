@@ -1,7 +1,5 @@
-import copy
 import dataclasses
 import pathlib
-import shutil
 
 import yaml
 
@@ -13,19 +11,20 @@ import footing.util
 class Registry:
     name: str
     kind: str
-    versioned: bool = True
+    unversioned: list = dataclasses.field(default_factory=list)
     _def: dict = None
 
     def __post_init__(self):
         self.load()
+        self._index = self._index or {"packages": {}}
 
     @property
     def index(self):
-        return self._index or {}
+        return self._index
 
     @property
     def packages(self):
-        return self.index.get("packages", {})
+        return self.index["packages"]
 
     @classmethod
     def from_def(cls, registry):
@@ -51,17 +50,17 @@ class Registry:
         """
         raise NotImplementedError()
 
-    def package_key(self, build):
+    def package_key(self, *, kind, name, ref):
         """Get the key for a package"""
-        key = f"{build.kind}:{build.name}"
-        if self.versioned:
-            key += f":{build.ref}"
+        key = f"{kind}:{name}"
+        if kind not in self.unversioned:
+            key += f":{ref}"
 
         return key
 
-    def find(self, build):
-        package = self.packages.get(self.package_key(build))
-        if not package or build.ref != package["ref"]:
+    def find(self, *, kind, name, ref):
+        package = self.packages.get(self.package_key(kind=kind, name=name, ref=ref))
+        if not package or ref != package["ref"]:
             return None
 
         package = Package(build=footing.build.Build.from_def(package), registry=self)
@@ -70,11 +69,20 @@ class Registry:
 
         return package
 
+    def push(self, build, copy=True):
+        raise NotImplementedError
+
+    def pull(self, build, output_path):
+        raise NotImplementedError
+
 
 @dataclasses.dataclass
 class Package:
     build: footing.build.Build
     registry: Registry
+
+    def pull(self, output_path):
+        return self.registry.pull(self.build, output_path)
 
 
 @dataclasses.dataclass
@@ -85,33 +93,66 @@ class FileSystemRegistry(Registry):
 
     def load(self):
         try:
-            with open(self.path / "index.yml", "r") as index_file:
-                self._index = yaml.load(index_file, loader=yaml.SafeLoader)
+            with open(self._resolve_path("index.yml"), "r") as index_file:
+                self._index = yaml.load(index_file, Loader=yaml.SafeLoader)
         except FileNotFoundError:
             self._index = {}
 
-    def _exists(self, package):
-        return pathlib.Path(package.build.path).exists()
+    def _resolve_path(self, path):
+        if pathlib.Path(path).is_absolute():
+            return pathlib.Path(path)
+        else:
+            return self.path / path
 
-    def push(self, build):
+    def _exists(self, package):
+        return self._resolve_path(package.build.path).exists()
+
+    def push(self, build, copy=True):
         assert build.path
-        package_key = self.package_key(build)
-        package = Package(build=copy.deepcopy(build), registry=self)
-        package.build.path = self.path / package_key
+        if copy and build.path.is_dir():
+            raise ValueError("Cannot copy directories")
+
+        package_key = self.package_key(kind=build.kind, name=build.name, ref=build.ref)
+
+        package = Package(
+            build=footing.build.Build(
+                kind=build.kind,
+                name=build.name,
+                ref=build.ref,
+                path=build.path.resolve() if not copy else package_key,
+            ),
+            registry=self,
+        )
 
         # TODO: Implement atomicity
-        shutil.copy(build.path, package.build.path)
-        self.index["packages"][self.package_key(build)] = dataclasses.asdict(package.build)
+        # TODO: Store relative paths in the index
+        if copy:
+            footing.util.copy_file(build.path, self._resolve_path(package_key))
 
-        # TODO: Write index
+        self.index["packages"][package_key] = dataclasses.asdict(package.build)
+        footing.util.yaml_dump(self.index, self._resolve_path("index.yml"))
 
         return package
+
+    def pull(self, build, output_path):
+        src = self._resolve_path(build.path)
+
+        if src.is_dir():
+            raise ValueError("Cannot pull directories")
+
+        footing.util.copy_file(src, output_path)
+
+        # TODO: Make copying builds easier
+        return footing.build.Build(
+            kind=build.kind, name=build.name, ref=build.ref, path=output_path
+        )
 
 
 @dataclasses.dataclass
 class LocalRegistry(FileSystemRegistry):
     name: str = "default"
     kind: str = "local"
+    unversioned: list = dataclasses.field(default_factory=lambda: ["toolkit"])
 
     @property
     def path(self):
@@ -122,7 +163,7 @@ class LocalRegistry(FileSystemRegistry):
 class RepoRegistry(FileSystemRegistry):
     name: str = "default"
     kind: str = "repo"
-    versioned: bool = False
+    unversioned: list = dataclasses.field(default_factory=lambda: ["toolkit-lock"])
 
     @property
     def path(self):

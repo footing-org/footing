@@ -3,7 +3,6 @@ import copy
 import dataclasses
 import hashlib
 import pathlib
-import shutil
 import tempfile
 import typing
 import unittest.mock
@@ -96,7 +95,7 @@ class Toolkit:
     _def: dict = None
 
     def __post_init__(self):
-        self.platforms = self.platforms or ["osx-arm64", "osx-64", "linux-64"]
+        self.platforms = self.platforms or ["osx-arm64"]  # , "osx-64", "linux-64"]
 
     @property
     def ref(self):
@@ -106,6 +105,9 @@ class Toolkit:
         files = [toolset.file for toolset in self.flattened_toolsets if toolset.file]
 
         h = hashlib.sha256()
+        for platform in self.platforms:
+            h.update(platform.encode("utf-8"))
+
         for definition in definitions:
             h.update(definition.encode("utf-8"))
 
@@ -224,10 +226,6 @@ class Toolkit:
 
         return cls.from_key(key)
 
-    @property
-    def lock_file(self):
-        return footing.util.locks_dir() / f"{self.uri}.yml"
-
     def lock(self, output_path):
         def _parse_source_files(*args, **kwargs):
             return self.dependency_specs
@@ -244,10 +242,9 @@ class Toolkit:
             pyproject_toml.get_lookup()
 
             # Run the actual locking function
-            footing.util.locks_dir().mkdir(exist_ok=True, parents=True)
             lock_args = [
                 "--lockfile",
-                str(self.lock_file),
+                str(output_path),
                 "--mamba",
                 "--strip-auth",
                 "--conda",
@@ -261,41 +258,50 @@ class Toolkit:
     def install(self):
         local_registry = footing.registry.local()
         repo_registry = footing.registry.repo()
-        build_ref = self.ref
-        build_name = self.conda_env_name
+        build_kwargs = {"ref": self.ref, "name": self.conda_env_name}
 
-        lock_build = footing.build.Build(kind="conda-lock", name=build_name, ref=build_ref)
-        if not repo_registry.find(lock_build):
-            if local_registry.find(lock_build):
-                local_registry.copy(lock_build, repo_registry)
+        lock_build_kwargs = {"kind": "toolkit-lock", **build_kwargs}
+        lock_package = repo_registry.find(**lock_build_kwargs)
+        if not lock_package:
+            local_lock_package = local_registry.find(**lock_build_kwargs)
+            if local_lock_package:
+                # Handle the case where a local lock file might be avaiable
+                with tempfile.NamedTemporaryFile() as tmp_file:
+                    local_lock_build = local_lock_package.pull(tmp_file.name)
+                    lock_package = repo_registry.push(local_lock_build)
             else:
                 # TODO: Refactor this into build system
-                with tempfile.NamedTemporaryFile() as lock_path:
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    lock_file_path = pathlib.Path(tmp_dir) / "conda-lock.yml"
                     # We need to re-compute the lock
-                    self.lock(lock_path)
-                    lock_build.path = lock_path
+                    self.lock(lock_file_path)
+                    lock_build = footing.build.Build(path=lock_file_path, **lock_build_kwargs)
                     local_registry.push(lock_build)
-                    repo_registry.push(lock_build)
+                    lock_package = repo_registry.push(lock_build)
 
-        toolkit_build = footing.build.Build(kind="toolkit", name=build_name, ref=build_ref)
-        if not local_registry.find(toolkit_build):
-            lock_build = repo_registry.find(lock_build)
-
+        toolkit_build_kwargs = {"kind": "toolkit", **build_kwargs}
+        toolkit_package = local_registry.find(**toolkit_build_kwargs)
+        if not toolkit_package:
             # TODO: Refactor this into build system
             with contextlib.ExitStack() as stack:
                 stack.enter_context(unittest.mock.patch("sys.exit"))
-                tmpdir = stack.enter_context(tempfile.TemporaryDirectory())
-                tmp_lock_file = pathlib.Path(tmpdir) / "conda-lock.yml"
+                tmp_dir = stack.enter_context(tempfile.TemporaryDirectory())
+                tmp_lock_file = pathlib.Path(tmp_dir) / "conda-lock.yml"
                 # TODO: We assume the lock build's URI is a file path that can be directly opened.
                 # This assumption is safe to make with filesystem registries, but we should
                 # abstract this under the Build class
-                shutil.copy(str(lock_build.path), str(tmp_lock_file))
-                conda_lock.conda_lock.install(
-                    ["--name", str(toolkit_build.name), str(tmp_lock_file)]
-                )
+                lock_package.pull(tmp_lock_file)
+                conda_lock.conda_lock.install(["--name", build_kwargs["name"], str(tmp_lock_file)])
 
-            toolkit_build.path = footing.util.conda_dir() / "envs" / self.conda_env_name
-            local_registry.push(toolkit_build)
+            toolkit_package = local_registry.push(
+                footing.build.Build(
+                    path=footing.util.conda_dir() / "envs" / build_kwargs["name"],
+                    **toolkit_build_kwargs,
+                ),
+                copy=False,
+            )
+
+        return toolkit_package
 
 
 def get(key=None):

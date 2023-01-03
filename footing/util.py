@@ -2,6 +2,7 @@ from collections import UserString
 import contextlib
 import os
 import pathlib
+import shutil
 import subprocess
 from urllib.parse import urlparse
 
@@ -11,12 +12,35 @@ import footing.constants
 import footing.version
 
 
+def yaml_dump(val, file):
+    def yaml_represent_str(self, data):
+        return yaml.representer.SafeRepresenter.represent_str(
+            self,
+            str(data),
+        )
+
+    dumper = yaml.SafeDumper
+    dumper.add_representer(pathlib.PosixPath, yaml_represent_str)
+
+    with contextlib.ExitStack() as stack:
+        if isinstance(file, (pathlib.Path, str)):
+            pathlib.Path(file).resolve().parent.mkdir(exist_ok=True, parents=True)
+            file = stack.enter_context(open(file, "w"))
+
+        yaml.dump(val, file, Dumper=dumper)
+
+
+def copy_file(src, dest):
+    pathlib.Path(dest).resolve().parent.mkdir(exist_ok=True, parents=True)
+    shutil.copy(str(src), str(dest))
+
+
 def install_dir():
     footing_file_path = footing.version.metadata.distribution("footing").files[0]
     site_packages_dir = pathlib.Path(
         str(footing_file_path.locate())[: -len(str(footing_file_path))]
     )
-    return site_packages_dir / ".." / ".." / ".." / ".."
+    return (site_packages_dir / ".." / ".." / ".." / "..").resolve()
 
 
 def local_cache_dir():
@@ -28,7 +52,7 @@ def local_cache_dir():
 def repo_cache_dir(base_dir=None):
     # TODO make this work even when the user is in a folder
     base_dir = base_dir or "."
-    return pathlib.Path(base_dir) / ".footing"
+    return pathlib.Path(base_dir).resolve() / ".footing"
 
 
 def conda_dir():
@@ -59,10 +83,6 @@ def footing_exe():
 
 def git_exe():
     return conda_dir() / "bin" / "git"
-
-
-def locks_dir():
-    return repo_cache_dir() / "locks"
 
 
 def local_config_path(base_dir=None):
