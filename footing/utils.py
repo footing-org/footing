@@ -149,8 +149,8 @@ def get_cookiecutter_config(template, default_config=None, version=None, paramet
         raise RuntimeError("No footing.yaml found")
 
     if parameters:
-        for key, val in parameters.items():
-            config[key] = val
+        for name, val in parameters.items():
+            config[name] = val
 
     return repo_dir, config
 

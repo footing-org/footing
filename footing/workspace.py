@@ -32,7 +32,7 @@ class Workspace:
 
     def save(self):
         with open(workspace_path(), "w") as f:
-            yaml.dump({"toolkit": self.toolkit.key if self.toolkit else None}, f)
+            yaml.dump({"toolkit": self.toolkit.name if self.toolkit else None}, f)
 
 
 def get():

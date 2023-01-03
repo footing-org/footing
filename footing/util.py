@@ -69,14 +69,6 @@ def condabin_dir(check=False):
     return condabin_dir
 
 
-def builds_dir():
-    return install_dir() / "builds"
-
-
-def artifacts_dir():
-    return install_dir() / "artifacts"
-
-
 def footing_exe():
     return conda_dir() / "bin" / "footing"
 
@@ -89,23 +81,21 @@ def local_config_path(base_dir=None):
     return repo_cache_dir(base_dir=base_dir) / "config.yml"
 
 
-def local_refs_path(base_dir=None):
-    return repo_cache_dir(base_dir=base_dir) / "refs.yml"
-
-
 def local_config(base_dir=None, create=False):
     """Return the config as a dict"""
     config_path = local_config_path(base_dir=base_dir)
+    config = {}
     try:
         with open(config_path) as f:
-            return yaml.load(f, Loader=yaml.SafeLoader)
+            config = yaml.load(f, Loader=yaml.SafeLoader)
     except FileNotFoundError:
         if create:
             config_path.parent.mkdir(exist_ok=True, parents=True)
             open(config_path, "w").close()
-            return {}
-        else:
-            return None
+
+    config.setdefault("toolkits", [])
+    config.setdefault("artifacts", [])
+    return config
 
 
 def shell(cmd, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):

@@ -111,11 +111,11 @@ def _get_parameters(
         with open(config_file) as f:
             config = yaml.load(f, Loader=yaml.SafeLoader)
 
-        # Get the parameters and format the keys so that formaldict can parse them
+        # Get the parameters and format the names so that formaldict can parse them
         param_schema = config["molds"][0]["parameters"]
         for p in param_schema:
             p["name"] = p["label"]
-            p["label"] = p["key"]
+            p["label"] = p["name"]
 
         param_schema = formaldict.Schema(param_schema)
 
@@ -133,8 +133,8 @@ def _get_parameters(
         raise RuntimeError("No footing.yaml found")
 
     if supplied_parameters:
-        for key, val in supplied_parameters.items():
-            parameters[key] = val
+        for name, val in supplied_parameters.items():
+            parameters[name] = val
 
     return parameters, repo_dir
 
@@ -152,10 +152,14 @@ def _get_latest_sha(repo_dir):
 
 @dataclasses.dataclass
 class Cast:
-    key: str
+    name: str
     url: footing.util.RepoPath
     version: str = None
     parameters: dict = dataclasses.field(default_factory=dict)
+
+    @property
+    def uri(self):
+        return f"cast:{self.name}"
 
     @classmethod
     def from_url(cls, url: footing.util.RepoPath, version=None):
@@ -168,13 +172,13 @@ class Cast:
                 config = yaml.load(f, Loader=yaml.SafeLoader)
                 config = config["molds"][0]
                 cast = cls(
-                    key=config["key"],
+                    name=config["name"],
                     url=url,
                     version=version or config.get("version"),
                     parameters=config["parameters"],
                 )
         else:
-            cast = cls(key=url.parsed().path.split("/")[-1], url=url, version=version)
+            cast = cls(name=url.parsed().path.split("/")[-1], url=url, version=version)
 
         # Fill in the default version last. This allows the footing config to specify
         # a version without it being overwritten
@@ -210,7 +214,7 @@ class Cast:
             )
 
             cast = Materialized(
-                key=self.key,
+                name=self.name,
                 url=self.url,
                 version=version or self.version,
                 parameters=parameters,
@@ -232,7 +236,11 @@ class Cast:
 
 @dataclasses.dataclass
 class Materialized:
-    key: str
+    name: str
     url: footing.util.RepoPath
     version: str
     parameters: dict
+
+    @property
+    def uri(self):
+        return f"materialized:{self.name}"

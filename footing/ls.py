@@ -22,7 +22,7 @@ def ls(url):
             gitlab group (gitlab.com/my/group), or template URL.
 
     Returns:
-        dict: A dictionary of repository information keyed on the url.
+        dict: A dictionary of repository information nameed on the url.
 
     Raises:
         `ValueError`: When ``url`` is invalid

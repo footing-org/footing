@@ -114,7 +114,7 @@ class Github(Forge):
             root (str, optional): The root being searched in Github
 
         Returns:
-            dict: A dictionary of repository information keyed on the git SSH url
+            dict: A dictionary of repository information nameed on the git SSH url
 
         Raises:
             `InvalidForgeError`: When ``forge`` is invalid
@@ -186,8 +186,8 @@ class Github(Forge):
         return collections.OrderedDict(
             sorted(
                 [
-                    (key, value["description"] or "(no description found)")
-                    for key, value in results.items()
+                    (name, value["description"] or "(no description found)")
+                    for name, value in results.items()
                 ]
             )
         )

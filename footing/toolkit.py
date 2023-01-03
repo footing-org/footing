@@ -88,14 +88,18 @@ class Toolset:
 
 @dataclasses.dataclass
 class Toolkit:
-    key: str
+    name: str
     toolsets: typing.List[Toolset] = dataclasses.field(default_factory=list)
     base: typing.Optional["Toolkit"] = None
     platforms: typing.List[str] = dataclasses.field(default_factory=list)
     _def: dict = None
 
+    @property
+    def uri(self):
+        return f"toolkit:{self.name}"
+
     def __post_init__(self):
-        self.platforms = self.platforms or ["osx-arm64"]  # , "osx-64", "linux-64"]
+        self.platforms = self.platforms or ["osx-arm64", "linux-aarch64"]  # , "osx-64", "linux-64"]
 
     @property
     def ref(self):
@@ -118,17 +122,13 @@ class Toolkit:
         return h.hexdigest()
 
     @property
-    def uri(self):
-        return f"toolkit:{self.key}"
-
-    @property
     def conda_env_name(self):
         """The conda environment name"""
         config = footing.util.local_config()
-        name = config["project"]["key"]
+        name = config["project"]["name"]
 
-        if self.key != "default":
-            name += f"-{self.key}"
+        if self.name != "default":
+            name += f"-{self.name}"
 
         return name
 
@@ -193,18 +193,18 @@ class Toolkit:
             toolsets.extend([Toolset.from_def(toolkit)])
 
         return cls(
-            key=toolkit["key"],
+            name=toolkit["name"],
             toolsets=toolsets,
-            base=Toolkit.from_key(toolkit["base"]) if toolkit.get("base") else None,
+            base=Toolkit.from_name(toolkit["base"]) if toolkit.get("base") else None,
             _def=toolkit,
         )
 
     @classmethod
-    def from_key(cls, key):
+    def from_name(cls, name):
         config = footing.util.local_config()
 
         for toolkit in config["toolkits"]:
-            if toolkit["key"] == key:
+            if toolkit["name"] == name:
                 return cls.from_def(toolkit)
 
     @classmethod
@@ -212,19 +212,19 @@ class Toolkit:
         config = footing.util.local_config()
         num_public_toolkits = 0
 
-        key = None
+        name = None
         for toolkit in config["toolkits"]:
-            if toolkit["key"] == "default":
-                key = "default"
+            if toolkit["name"] == "default":
+                name = "default"
                 break
-            elif not toolkit["key"].startswith("_"):
-                key = toolkit["key"]
+            elif not toolkit["name"].startswith("_"):
+                name = toolkit["name"]
                 num_public_toolkits += 1
         else:
             if num_public_toolkits != 1:
                 return None
 
-        return cls.from_key(key)
+        return cls.from_name(name)
 
     def lock(self, output_path):
         def _parse_source_files(*args, **kwargs):
@@ -258,7 +258,7 @@ class Toolkit:
     def install(self):
         local_registry = footing.registry.local()
         repo_registry = footing.registry.repo()
-        build_kwargs = {"ref": self.ref, "name": self.conda_env_name}
+        build_kwargs = {"ref": self.ref, "name": self.name}
 
         lock_build_kwargs = {"kind": "toolkit-lock", **build_kwargs}
         lock_package = repo_registry.find(**lock_build_kwargs)
@@ -291,11 +291,11 @@ class Toolkit:
                 # This assumption is safe to make with filesystem registries, but we should
                 # abstract this under the Build class
                 lock_package.pull(tmp_lock_file)
-                conda_lock.conda_lock.install(["--name", build_kwargs["name"], str(tmp_lock_file)])
+                conda_lock.conda_lock.install(["--name", self.conda_env_name, str(tmp_lock_file)])
 
             toolkit_package = local_registry.push(
                 footing.build.Build(
-                    path=footing.util.conda_dir() / "envs" / build_kwargs["name"],
+                    path=footing.util.conda_dir() / "envs" / self.conda_env_name,
                     **toolkit_build_kwargs,
                 ),
                 copy=False,
@@ -304,9 +304,9 @@ class Toolkit:
         return toolkit_package
 
 
-def get(key=None):
-    if key:
-        return Toolkit.from_key(key)
+def get(name=None):
+    if name:
+        return Toolkit.from_name(name)
     else:
         return Toolkit.from_default()
 
@@ -315,14 +315,14 @@ def ls(active=False):
     config = footing.util.local_config()
 
     if active:
-        key = footing.settings.get("toolkit")
-        if key:
-            return [Toolkit.from_key(key)]
+        name = footing.settings.get("toolkit")
+        if name:
+            return [Toolkit.from_name(name)]
         else:
             return []
     else:
         return [
             Toolkit.from_def(toolkit)
             for toolkit in config["toolkits"]
-            if not toolkit["key"].startswith("_")
+            if not toolkit["name"].startswith("_")
         ]

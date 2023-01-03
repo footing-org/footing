@@ -6,22 +6,28 @@ import footing.util
 
 @dataclasses.dataclass
 class Job:
-    cmd: str = None
+    name: str
+    cmd: str
     toolkit: str = None
+    _def: dict = None
+
+    @property
+    def uri(self):
+        return f"job:{self.name}"
 
     @classmethod
     def from_def(cls, job):
-        return cls(cmd=job["cmd"], toolkit=footing.toolkit.get(job.get("toolkit")))
+        return cls(name=job["name"], cmd=job["cmd"], toolkit=footing.toolkit.get(job.get("toolkit")), _def=job)
 
     @classmethod
-    def from_key(cls, key):
+    def from_name(cls, name):
         config = footing.util.local_config()
 
         for job in config["jobs"]:
-            if job["key"] == key:
+            if job["name"] == name:
                 return cls.from_def(job)
 
-        raise ValueError(f'"{key}" is not a configured job')
+        raise ValueError(f'"{name}" is not a configured job')
 
     def run(self, *, toolkit=None):
         toolkit = toolkit or self.toolkit or footing.toolkit.get()
@@ -29,5 +35,5 @@ class Job:
         return res
 
 
-def get(key):
-    return Job.from_key(key)
+def get(name):
+    return Job.from_name(name)

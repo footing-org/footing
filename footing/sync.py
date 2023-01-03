@@ -144,8 +144,8 @@ def sync(
     Note that the `footing.constants.FOOTING_ENV_VAR` is set to 'update' for the
     duration of this function.
 
-    Two branches will be created during the update process, one named
-    ``_footing_update`` and one named ``_footing_update_temp``. At the end of
+    Two branches will be created during the update process, one keyed
+    ``_footing_update`` and one keyed ``_footing_update_temp``. At the end of
     the process, ``_footing_update_temp`` will be removed automatically. The
     work will be left in ``_footing_update`` in an uncommitted state for
     review. The update will fail early if either of these branches exist

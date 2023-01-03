@@ -61,9 +61,9 @@ def bootstrap(system):
 ###
 
 
-def _toolkit_install(key=None):
-    if key:
-        footing.toolkit.get(key).install()
+def _toolkit_install(name=None):
+    if name:
+        footing.toolkit.get(name).install()
     else:
         workspace = footing.workspace.get()
         if workspace.toolkit:
@@ -79,12 +79,12 @@ def toolkit():
 
 
 @toolkit.command("install")
-@click.argument("key", nargs=1, required=False)
-def toolkit_install(key):
+@click.argument("name", nargs=1, required=False)
+def toolkit_install(name):
     """
     Install a toolkit.
     """
-    _toolkit_install(key)
+    _toolkit_install(name)
 
 
 @toolkit.command("ls")
@@ -95,7 +95,7 @@ def toolkit_ls(active):
     """
     toolkits = footing.toolkit.ls(active=active)
     for toolkit in toolkits:
-        click.echo(toolkit.key)
+        click.echo(toolkit.name)
 
 
 ###
@@ -112,12 +112,24 @@ def artifact():
 
 
 @artifact.command("build")
-@click.argument("key", nargs=1)
-def artifact_build(key):
+@click.argument("name", nargs=1)
+def artifact_build(name):
     """
     Sync an artifact.
     """
-    footing.artifact.get(key).build()
+    footing.artifact.get(name).build()
+
+
+@artifact.command("ls")
+@click.argument("name", nargs=1, required=False)
+def artifact_ls(name):
+    """
+    List artifacts.
+    """
+    artifacts = footing.artifact.ls(name=name)
+    for artifact in artifacts:
+        resolved = str(artifact.package.resolve()) if artifact.package else ""
+        click.echo(f"{artifact.uri}\t{resolved}")
 
 
 ###
@@ -134,12 +146,12 @@ def job():
 
 
 @job.command("run")
-@click.argument("key", nargs=1, required=True)
-def job_run(key):
+@click.argument("name", nargs=1, required=True)
+def job_run(name):
     """
     Run a job.
     """
-    footing.job.get(key).run()
+    footing.job.get(name).run()
 
 
 ###
@@ -358,7 +370,7 @@ def shell():
 def install(toolkits):
     """Install a workspace."""
     if toolkits:
-        for key in toolkits:
-            _toolkit_install(key)
+        for name in toolkits:
+            _toolkit_install(name)
     else:
         _toolkit_install()

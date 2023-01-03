@@ -11,18 +11,22 @@ import footing.toolkit
 import footing.util
 
 
-def build_squash_fs(artifact):
-     with tempfile.TemporaryDirectory() as tmp_dir:
-        output_path = pathlib.Path(tmp_dir) / f"{artifact.key}.squashfs"
+def build_packed_toolkit(artifact):
+    local_registry = footing.registry.local()
+    suffix = artifact.kind if artifact.kind != "packed-toolkit" else "tar.gz"
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        output_path = pathlib.Path(tmp_dir) / f"{artifact.uri}.{suffix}"
         conda_pack.pack(
             name=artifact.toolkit.conda_env_name,
             output=str(output_path),
             ignore_missing_files=True,
+            filters=[("exclude", "*__pycache__*")]
         )
 
         return local_registry.push(
             footing.build.Build(
-                ref=ref, name=artifact.name, kind=artifact.kind, path=output_path
+                ref=artifact.ref, name=artifact.name, kind=artifact.kind, path=output_path
             )
         )
 
@@ -39,7 +43,7 @@ class Artifact:
     _def: dict = None
 
     @property
-    def key(self):
+    def uri(self):
         return f"{self.kind}:{self.name}"
 
     @classmethod
@@ -49,11 +53,12 @@ class Artifact:
         return cls(name=artifact["name"], kind=artifact["kind"], toolkit=toolkit, _def=artifact)
 
     @classmethod
-    def from_key(cls, key):
+    def from_name(cls, name):
+        # TODO: Refactor this to no longer use "name" and use URIs
         config = footing.util.local_config()
 
         for artifact in config["artifacts"]:
-            if artifact["name"] == key:
+            if artifact["name"] == name:
                 return cls.from_def(artifact)
 
     @property
@@ -68,25 +73,38 @@ class Artifact:
 
         return h.hexdigest()
 
-    def build(self):
-        ref = self.ref
+    @property
+    def package(self):
         local_registry = footing.registry.local()
-        package = local_registry.find(kind=self.kind, name=self.name, ref=ref)
+        return local_registry.find(kind=self.kind, name=self.name, ref=self.ref)
+
+    def build(self):
+        package = self.package
         if not package:
             if self.toolkit:
                 # TODO: Force re-install in the case someone modified the toolkit locally
                 self.toolkit.install()
 
-            if self.kind == "squashfs":
-                package = build_squash_fs(artifact)
+            if self.kind in ("squashfs", "packed-toolkit"):
+                package = build_packed_toolkit(self)
             elif self.kind == "image":
-                package = build_image(artifact)
+                package = build_image(self)
             else:
                 raise ValueError(f"Invalid kind - '{self.kind}'")
 
         return package
 
 
-def get(key):
-    # TODO: Change this function to look up on kind/name
-    return Artifact.from_key(key)
+def get(name):
+    # TODO: Change this function to look up on URI
+    return Artifact.from_name(name)
+
+
+def ls(registry=None, name=None):
+    config = footing.util.local_config()
+
+    return [
+        Artifact.from_def(artifact)
+        for artifact in config["artifacts"]
+        if name is None or artifact["name"] == name
+    ]

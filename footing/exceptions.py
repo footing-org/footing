@@ -47,7 +47,7 @@ class InvalidTemplatePathError(Error):
 
 
 class ExistingBranchError(Error):
-    """Thrown when a specifically named branch exists or doesn't exist as expected."""
+    """Thrown when a specifically keyed branch exists or doesn't exist as expected."""
 
 
 class InvalidCurrentBranchError(Error):

@@ -9,6 +9,10 @@ class Build:
     ref: str
     path: pathlib.Path
 
+    @property
+    def uri(self):
+        return f"{self.kind}:{self.name}"
+
     def __post_init__(self):
         self.path = pathlib.Path(self.path)
 
