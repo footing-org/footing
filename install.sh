@@ -75,7 +75,7 @@ fi
 
 $mamba_prefix/bin/pip3 install --upgrade --force-reinstall $footing_package_file
 # Install a few Python pre-reqs so that footing can run. Footing may update these during bootstrapping
-$mamba_prefix/bin/mamba install conda-lock==1.3.0 conda-pack==0.7.0
+$mamba_prefix/bin/mamba install -y conda-lock==1.3.0 conda-pack==0.7.0
 
 if [ -z "$FOOTING_BOOTSTRAP_SKIP_SYSTEM" ]
 then
