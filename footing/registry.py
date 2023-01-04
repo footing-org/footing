@@ -4,7 +4,6 @@ import pathlib
 
 import boto3
 import docker
-import magic
 import yaml
 
 import footing.build
@@ -204,6 +203,7 @@ class S3Registry(Registry):
             bucket (str): The S3 bucket
             base_s3_dir (str): The base S3 directory to which uploads will go
         """
+        import magic
         boto_s3 = boto3.resource("s3")
         bucket = str(self.path)
         base_s3_dir = None
