@@ -2,7 +2,9 @@ import dataclasses
 import os
 import pathlib
 
+import boto3
 import docker
+import magic
 import yaml
 
 import footing.build
@@ -178,11 +180,53 @@ class ContainerRegistry(Registry):
             "username": os.environ.get(f"FOOTING_AUTH_REGISTRY_{self.name}_USER"),
             "password": os.environ.get(f"FOOTING_AUTH_REGISTRY_{self.name}_PASS"),
         }
-        resp = self.client.images.push(
+        self.client.images.push(
             f"{self.name}/{build.name}",
             auth_config=auth_config,
         )
-        print(resp)
+
+
+@dataclasses.dataclass
+class S3Registry(Registry):
+    kind: str = "s3"
+
+    @property
+    def client(self):
+        return docker.from_env()
+
+    def upload_to_s3(self, local_dir):
+        """Upload a directory to S3
+
+        Contents of local_dir will appear under bucket/base_s3_dir
+
+        Args:
+            local_dir (str): The local directory to be uploaded
+            bucket (str): The S3 bucket
+            base_s3_dir (str): The base S3 directory to which uploads will go
+        """
+        boto_s3 = boto3.resource("s3")
+        bucket = str(self.path)
+        base_s3_dir = None
+        mime = magic.Magic(mime=True)
+
+        for root, _, files in os.walk(local_dir):
+            for name in files:
+                local_p = os.path.join(root, name)
+                relative_p = os.path.relpath(local_p, local_dir)
+                s3_path = os.path.join(base_s3_dir, relative_p) if base_s3_dir else relative_p
+
+                # python-magic doesnt accurately deal with CSS filesg
+                if local_p.endswith(".css"):
+                    content_type = "text/css"
+                else:
+                    content_type = mime.from_file(local_p)
+
+                obj = boto_s3.Object(bucket, s3_path)
+                print(f"uploading {local_p} to {bucket}/{s3_path}...")
+                obj.upload_file(local_p, ExtraArgs={"ContentType": content_type})
+
+    def push(self, build, copy=True):
+        self.upload_to_s3(str(build.path))
 
 
 def local():
@@ -196,6 +240,8 @@ def repo():
 def from_def(registry):
     if registry["kind"] == "container":
         return ContainerRegistry(_def=registry, **registry)
+    elif registry["kind"] == "s3":
+        return S3Registry(_def=registry, **registry)
     else:
         raise NotImplementedError
 
@@ -211,3 +257,7 @@ def get(name):
         for registry in config["registries"]:
             if registry["name"] == name:
                 return from_def(registry)
+
+
+def up(*names):
+    """Create registries"""

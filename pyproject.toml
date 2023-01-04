@@ -51,6 +51,8 @@ documentation = "https://footing.readthedocs.io"
 [tool.poetry.dependencies]
 python = ">=3.7.0,<4"
 importlib_metadata = { version = ">=4", python = "~3.7" }
+boto3 = ">=1.26"
+python-magic = ">=0.4.15"
 click = ">=6.7"
 cookiecutter = "<2.0.0"
 dirhash = ">=0.2.1"

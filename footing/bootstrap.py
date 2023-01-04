@@ -23,6 +23,7 @@ def bootstrap(system=False):
         "conda-pack==0.7.0",
         "squashfs-tools==4.4",
         "docker-py==6.0.0",
+        "libmagic==5.39",
     ]
     all_libraries = base_libraries + ["terraform==1.3.5"]
 

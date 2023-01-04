@@ -93,6 +93,23 @@ def build_image(artifact):
         )
 
 
+def build_sphinx(artifact):
+    local_registry = footing.registry.local()
+
+    with footing.util.cd("docs"):
+        footing.util.shell("make html")
+
+    return local_registry.push(
+        footing.build.Build(
+            ref=artifact.ref,
+            name=artifact.name,
+            kind=artifact.kind,
+            path=pathlib.Path("docs/_build/html").resolve(),
+        ),
+        copy=False,
+    )
+
+
 @dataclasses.dataclass
 class Artifact:
     name: str
@@ -163,6 +180,8 @@ class Artifact:
                 package = build_packed_toolkit(self)
             elif self.kind == "image":
                 package = build_image(self)
+            elif self.kind == "sphinx":
+                package = build_sphinx(self)
             else:
                 raise ValueError(f"Invalid kind - '{self.kind}'")
 
