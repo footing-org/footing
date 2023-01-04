@@ -42,7 +42,11 @@ def build_image(artifact):
         with docker_file_path.open("w") as docker_file:
             entry = ""
             if artifact.entry:
-                entry = "ENTRYPOINT [" + ", ".join([f'"{val}"' for val in artifact.entry]) + "]"
+                entry = (
+                    "ENTRYPOINT ["
+                    + ", ".join([f'"{val}"' for val in artifact.entry.split()])
+                    + "]"
+                )
 
             docker_file.write(
                 textwrap.dedent(

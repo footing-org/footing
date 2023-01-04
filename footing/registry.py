@@ -1,4 +1,5 @@
 import dataclasses
+import os
 import pathlib
 
 import docker
@@ -12,6 +13,7 @@ import footing.util
 class Registry:
     name: str
     kind: str
+    path: pathlib.Path = None
     unversioned: list = dataclasses.field(default_factory=list)
     _def: dict = None
 
@@ -21,7 +23,8 @@ class Registry:
 
     def __post_init__(self):
         self.load()
-        self._index = self._index or {"packages": {}}
+        self._index = getattr(self, "_index", None) or {"packages": {}}
+        self.path = pathlib.Path(self.path)
 
     @property
     def index(self):
@@ -31,33 +34,16 @@ class Registry:
     def packages(self):
         return self.index["packages"]
 
-    @classmethod
-    def from_def(cls, registry):
-        return cls(_def=registry, **registry)
-
-    @classmethod
-    def from_local(cls):
-        return cls(name="default", kind="local")
-
-    @classmethod
-    def from_repo(cls):
-        return cls(name="default", kind="repo")
-
-    @property
-    def root(self):
-        raise NotImplementedError
-
     def load(self):
         # Load self._index
-        raise NotImplementedError
+        pass
 
     def exists(self, build):
-        """Return True if the build exists.
-
-        For example, a local path might have been deleted, causing the build to no longer
-        be valid in the registry
-        """
-        raise NotImplementedError()
+        if build.kind == "image":
+            client = docker.from_env()
+            return client.images.get(str(build.path)) is not None
+        else:
+            return self.resolve(build.path).exists()
 
     def package_name(self, *, kind, name, ref):
         """Get the name for a package"""
@@ -108,7 +94,7 @@ class FileSystemRegistry(Registry):
         if pathlib.Path(path).is_absolute():
             return pathlib.Path(path)
         else:
-            return self.root / path
+            return self.path / path
 
     def load(self):
         try:
@@ -117,15 +103,10 @@ class FileSystemRegistry(Registry):
         except FileNotFoundError:
             self._index = {}
 
-    def exists(self, build):
-        if build.kind == "image":
-            client = docker.from_env()
-            return client.images.get(str(build.path)) is not None
-        else:
-            return self.resolve(build.path).exists()
-
     def push(self, build, copy=True):
         assert build.path
+        if copy and build.path.is_dir():
+            raise ValueError("Cannot copy directories")
 
         package_name = self.package_name(kind=build.kind, name=build.name, ref=build.ref)
 
@@ -152,6 +133,9 @@ class FileSystemRegistry(Registry):
     def pull(self, build, output_path):
         src = self.resolve(build.path)
 
+        if src.is_dir():
+            raise ValueError("Cannot pull directories")
+
         footing.util.copy_file(src, output_path)
 
         # TODO: Make copying builds easier
@@ -163,21 +147,42 @@ class FileSystemRegistry(Registry):
 @dataclasses.dataclass
 class LocalRegistry(FileSystemRegistry):
     name: str = "local"
+    path: pathlib.Path = dataclasses.field(
+        default_factory=lambda: footing.util.local_cache_dir() / "registry"
+    )
     unversioned: list = dataclasses.field(default_factory=lambda: ["toolkit"])
-
-    @property
-    def root(self):
-        return footing.util.local_cache_dir() / "registry"
 
 
 @dataclasses.dataclass
 class RepoRegistry(FileSystemRegistry):
     name: str = "repo"
+    path: pathlib.Path = dataclasses.field(
+        default_factory=lambda: footing.util.repo_cache_dir() / "registry"
+    )
     unversioned: list = dataclasses.field(default_factory=lambda: ["toolkit-lock"])
 
+
+@dataclasses.dataclass
+class ContainerRegistry(Registry):
+    kind: str = "container"
+
     @property
-    def root(self):
-        return footing.util.repo_cache_dir() / "registry"
+    def client(self):
+        return docker.from_env()
+
+    def push(self, build, copy=True):
+        image = self.client.images.get(str(build.path))
+        assert image
+        image.tag(f"{self.name}/{build.name}", force=True)
+        auth_config = {
+            "username": os.environ.get(f"FOOTING_AUTH_REGISTRY_{self.name}_USER"),
+            "password": os.environ.get(f"FOOTING_AUTH_REGISTRY_{self.name}_PASS"),
+        }
+        resp = self.client.images.push(
+            f"{self.name}/{build.name}",
+            auth_config=auth_config,
+        )
+        print(resp)
 
 
 def local():
@@ -188,12 +193,21 @@ def repo():
     return RepoRegistry()
 
 
+def from_def(registry):
+    if registry["kind"] == "container":
+        return ContainerRegistry(_def=registry, **registry)
+    else:
+        raise NotImplementedError
+
+
 def get(name):
     if name == "local":
         return local()
     elif name == "repo":
         return repo()
+    else:
+        config = footing.util.local_config()
 
-
-def ls():
-    return [local(), repo()]
+        for registry in config["registries"]:
+            if registry["name"] == name:
+                return from_def(registry)

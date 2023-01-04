@@ -115,7 +115,7 @@ def artifact():
 @click.argument("name", nargs=1)
 def artifact_build(name):
     """
-    Sync an artifact.
+    Build an artifact.
     """
     footing.artifact.get(name).build()
 
@@ -130,6 +130,25 @@ def artifact_ls(name):
     for artifact in artifacts:
         resolved = str(artifact.package.resolve()) if artifact.package else ""
         click.echo(f"{artifact.uri}\t{resolved}")
+
+
+@artifact.command("push")
+@click.argument("name", nargs=1)
+@click.option(
+    "-r",
+    "--registry",
+    required=True,
+    default=None,
+    help="Registry to push to.",
+)
+def artifact_push(name, registry):
+    """
+    Push artifacts.
+    """
+    artifact = footing.artifact.get(name)
+    artifact.build()
+    registry = footing.registry.get(registry)
+    registry.push(artifact.package.build)
 
 
 ###
