@@ -9,7 +9,7 @@ footing_prefix="${PREFIX:-$default_footing_prefix}"
 ###
 
 mamba_ver=22.9.0
-footing_ver=0.1.7
+footing_ver=0.1.8
 mambaforge_patch=2
 
 if [ "$(uname)" == "Darwin" ]; then
