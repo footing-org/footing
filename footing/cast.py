@@ -113,9 +113,10 @@ def _get_parameters(
 
         # Get the parameters and format the names so that formaldict can parse them
         param_schema = config["molds"][0]["parameters"]
-        for p in param_schema:
-            p["name"] = p["label"]
-            p["label"] = p["name"]
+        #for p in param_schema:
+        #    old_name = p["name"]
+        #    p["name"] = p["label"]
+        #    p["label"] = old_name
 
         param_schema = formaldict.Schema(param_schema)
 

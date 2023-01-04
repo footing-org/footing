@@ -180,7 +180,7 @@ class ContainerRegistry(Registry):
             "password": os.environ.get(f"FOOTING_AUTH_REGISTRY_dockerhub_PASS"),
         }
         self.client.images.push(
-            f"{self.name}/{build.name}",
+            f"{self.path}/{build.name}",
             auth_config=auth_config,
         )
 
@@ -222,7 +222,7 @@ class S3Registry(Registry):
                     content_type = mime.from_file(local_p)
 
                 obj = boto_s3.Object(bucket, s3_path)
-                print(f"uploading {local_p} to {bucket}/{s3_path}...")
+                #print(f"uploading {local_p} to {bucket}/{s3_path}...")
                 obj.upload_file(local_p, ExtraArgs={"ContentType": content_type})
 
     def push(self, build, copy=True):
