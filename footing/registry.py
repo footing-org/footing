@@ -175,10 +175,10 @@ class ContainerRegistry(Registry):
     def push(self, build, copy=True):
         image = self.client.images.get(str(build.path))
         assert image
-        image.tag(f"{self.name}/{build.name}", force=True)
+        image.tag(f"{self.path}/{build.name}", force=True)
         auth_config = {
-            "username": os.environ.get(f"FOOTING_AUTH_REGISTRY_{self.name}_USER"),
-            "password": os.environ.get(f"FOOTING_AUTH_REGISTRY_{self.name}_PASS"),
+            "username": os.environ.get(f"FOOTING_AUTH_REGISTRY_dockerhub_USER"),
+            "password": os.environ.get(f"FOOTING_AUTH_REGISTRY_dockerhub_PASS"),
         }
         self.client.images.push(
             f"{self.name}/{build.name}",

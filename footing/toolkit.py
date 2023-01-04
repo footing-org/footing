@@ -26,8 +26,8 @@ class Toolset:
         if self.manager not in ["conda", "pip"]:
             raise ValueError(f"Unsupported manager '{self.manager}'")
 
-        if not self.tools and not self.file:
-            raise ValueError("Must provide a list of tools or a file for toolkit")
+        #if not self.tools and not self.file:
+        #    raise ValueError("Must provide a list of tools or a file for toolkit")
 
         if self.file and self.file not in (
             "pyproject.toml",
@@ -92,6 +92,7 @@ class Toolkit:
     toolsets: typing.List[Toolset] = dataclasses.field(default_factory=list)
     base: typing.Optional["Toolkit"] = None
     platforms: typing.List[str] = dataclasses.field(default_factory=list)
+    category: str = "dev"
     _def: dict = None
 
     @property
@@ -197,6 +198,7 @@ class Toolkit:
 
         return cls(
             name=toolkit["name"],
+            category=toolkit.get("category", "dev"),
             toolsets=toolsets,
             base=Toolkit.from_name(toolkit["base"]) if toolkit.get("base") else None,
             _def=toolkit,
@@ -294,7 +296,13 @@ class Toolkit:
                 # This assumption is safe to make with filesystem registries, but we should
                 # abstract this under the Build class
                 lock_package.pull(tmp_lock_file)
-                conda_lock.conda_lock.install(["--name", self.conda_env_name, str(tmp_lock_file)])
+                install_args = ["--name", self.conda_env_name, str(tmp_lock_file)]
+                if self.category != "dev":
+                    install_args.extend(["--no-dev"])
+
+                conda_lock.conda_lock.install(install_args)
+                if self.category == "dev":
+                    footing.util.conda_run("pip install -e .", toolkit=self)
 
             toolkit_package = local_registry.push(
                 footing.build.Build(

@@ -3,6 +3,7 @@ The footing CLI.
 """
 import os
 import sys
+import time
 
 import click
 import pkg_resources
@@ -54,6 +55,31 @@ def bootstrap(system):
     Bootstraps installation.
     """
     footing.bootstrap.bootstrap(system=system)
+
+
+@main.command()
+def up():
+    """
+    Spin up infrastructure
+    """
+    footing.util.shell("open 'https://tryfooting.com/app/cli/'")
+    input()
+    print("Provisioning footing credentials...")
+    time.sleep(3)
+    with footing.util.cd(".tf"):
+        footing.util.shell("terraform init")
+        footing.util.shell("terraform apply -auto-approve")
+
+
+@main.command()
+def publish():
+    """
+    Publish artifacts to registries
+    """
+    print("Building and pushing dockerhub image...")
+    footing.util.shell("footing artifact push my-first-cli -r dockerhub")
+    print("Building and pushing sphinx docs...")
+    footing.util.shell("footing artifact push sphinx-docs -r s3-site")
 
 
 ###

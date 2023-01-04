@@ -39,6 +39,7 @@ def build_image(artifact):
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         docker_file_path = pathlib.Path(tmp_dir) / "Dockerfile"
+        #docker_file_path = pathlib.Path("MyDockerfile")
         with docker_file_path.open("w") as docker_file:
             entry = ""
             if artifact.entry:
