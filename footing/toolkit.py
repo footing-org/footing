@@ -36,6 +36,18 @@ class Toolset:
         ):
             raise ValueError(f"Unsupported file '{self.file}'")
 
+    def install(self, toolkit):
+        if self.manager == "conda":
+            tools = " ".join(self.tools)
+            footing.util.conda(f"create -y -n {toolkit.conda_env_name}")
+            footing.util.conda_install(tools, toolkit=toolkit)
+        elif self.manager == "pip":
+            if self.file == "pyproject.toml":
+                footing.util.conda_run(f"poetry install", toolkit=toolkit)
+            else:
+                tools = " ".join(self.tools)
+                footing.util.conda_run(f"pip install {tools}", toolkit=toolkit)
+
     @property
     def dependency_spec(self):
         """Generate the dependency specification"""
@@ -252,6 +264,8 @@ class Toolkit:
                 str(output_path),
                 "--mamba",
                 "--strip-auth",
+                "--log-level",
+                "DEBUG",
                 "--conda",
                 str(footing.util.condabin_dir() / "mamba"),
             ]
@@ -265,6 +279,7 @@ class Toolkit:
         repo_registry = footing.registry.repo()
         build_kwargs = {"ref": self.ref, "name": self.name}
 
+        '''
         lock_build_kwargs = {"kind": "toolkit-lock", **build_kwargs}
         lock_package = repo_registry.find(**lock_build_kwargs)
         if not lock_package:
@@ -283,10 +298,14 @@ class Toolkit:
                     lock_build = footing.build.Build(path=lock_file_path, **lock_build_kwargs)
                     local_registry.push(lock_build)
                     lock_package = repo_registry.push(lock_build)
+        '''
 
         toolkit_build_kwargs = {"kind": "toolkit", **build_kwargs}
         toolkit_package = local_registry.find(**toolkit_build_kwargs)
         if not toolkit_package:
+            for toolset in self.flattened_toolsets:
+                toolset.install(toolkit=self)
+            '''
             # TODO: Refactor this into build system
             with contextlib.ExitStack() as stack:
                 stack.enter_context(unittest.mock.patch("sys.exit"))
@@ -303,7 +322,7 @@ class Toolkit:
                 conda_lock.conda_lock.install(install_args)
                 if self.category == "dev":
                     footing.util.conda_run("pip install -e .", toolkit=self)
-
+            '''
             toolkit_package = local_registry.push(
                 footing.build.Build(
                     path=(footing.util.conda_dir() / "envs" / self.conda_env_name).resolve(),

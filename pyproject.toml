@@ -44,9 +44,9 @@ classifiers = [
 ]
 license = "BSD-3-Clause"
 readme = "README.rst"
-homepage = "https://github.com/Opus10/footing"
-repository = "https://github.com/Opus10/footing"
-documentation = "https://footing.readthedocs.io"
+homepage = "https://github.com/FootingDev/footing"
+repository = "https://github.com/FootingDev/footing"
+documentation = "https://github.com/FootingDev/footing"
 
 [tool.poetry.dependencies]
 python = ">=3.7.0,<4"
