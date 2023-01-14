@@ -21,6 +21,10 @@ def condabin_path():
     return conda_root_path() / "condabin"
 
 
+def micromamba_path():
+    return conda_root_path() / "bin" / "micromamba"
+
+
 def footing_path():
     return conda_root_path() / "bin" / "footing"
 

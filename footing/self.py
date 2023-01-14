@@ -12,10 +12,12 @@ def init(system=False):
         system (bool, optional): True if footing should be installed in the /usr/local/bin
             directory.
     """
-    condabin_path = footing.utils.condabin_path()
-
-    if not condabin_path.exists():
+    micromamba_path = footing.utils.micromamba_path()
+    if not footing.utils.micromamba_path().exists():
         raise RuntimeError("No conda installation found. Please use the official installer.")
+
+    condabin_path = footing.utils.condabin_path()
+    condabin_path.mkdir(exist_ok=True)
 
     # Create soft links to footing so that it is globally installed among envs
     with contextlib.chdir(condabin_path):
