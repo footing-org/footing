@@ -68,7 +68,7 @@ $micromamba_prefix/bin/micromamba -r $micromamba_prefix install -y python==3.11 
 # Install footing
 ###
 
-footing_ver="${FOOTING_BRANCH:-1.0.0}"
+footing_ver="${FOOTING_VERSION:-1.0.0}"
 footing_branch="${FOOTING_BRANCH:-main}"
 footing_wheel="footing-$footing_ver-py3-none-any.whl"
 footing_package_url="https://raw.githubusercontent.com/wesleykendall/footing/$footing_branch/$footing_wheel"
@@ -78,11 +78,11 @@ footing_package_file="$footing_package_dir/$footing_wheel"
 printf "Installing footing...\\n"
 download_file $footing_package_url $footing_package_file
 
-$footing_prefix/toolkits/bin/pip3 install --upgrade --force-reinstall $footing_package_file
+$micromamba_prefix/bin/pip3 install --upgrade --force-reinstall $footing_package_file
 
 if [[ -z "$FOOTING_BOOTSTRAP_SKIP_SYSTEM" ]]
 then
-    $footing_prefix/bin/footing bootstrap --system
+    $micromamba_prefix/bin/footing self init --system
 else
-    $footing_prefix/bin/footing bootstrap
+    $micromamba_prefix/bin/footing self init
 fi

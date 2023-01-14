@@ -19,7 +19,7 @@ def main():
     self_parser = subparsers.add_parser('self')
     self_subparsers = self_parser.add_subparsers(dest="subcommand", required=True)
     self_init_parser = self_subparsers.add_parser('init')
-    self_init_parser.add_argument("--system", default=False)
+    self_init_parser.add_argument("--system", action=argparse.BooleanOptionalAction)
 
     kwargs = vars(parser.parse_args())
     command = kwargs.pop("command")
