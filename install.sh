@@ -51,18 +51,18 @@ micromamba_archive_file="$micromamba_installer_dir/micromamba.tar.gz"
 micromamba_installer_url="https://micro.mamba.pm/api/micromamba/$platform-$arch/latest"
 micromamba_prefix=$footing_prefix/toolkits
 
-printf "Installing micromamba...\\n"
+printf "\033[0;32mInstalling micromamba...\033[0m\\n"
 download_file $micromamba_installer_url $micromamba_archive_file
 mkdir -p $footing_prefix/toolkits/bin
 cat $micromamba_archive_file | tar -xj -C $footing_prefix/toolkits/bin --strip-components=1 bin/micromamba
+micromamba="$micromamba_prefix/bin/micromamba -r $micromamba_prefix -y --no-rc --no-env"
 
 ###
 # Install python
 ###
 
-printf "Installing python...\\n"
-
-$micromamba_prefix/bin/micromamba -r $micromamba_prefix install -y python==3.11 -c conda-forge
+printf "\033[0;32mInstalling python...\033[0m\\n"
+$micromamba install python==3.11 -c conda-forge -n base
 
 ###
 # Install footing
@@ -75,14 +75,7 @@ footing_package_url="https://raw.githubusercontent.com/wesleykendall/footing/$fo
 footing_package_dir=$(mktemp -d)
 footing_package_file="$footing_package_dir/$footing_wheel"
 
-printf "Installing footing...\\n"
+printf "\033[0;32mInstalling footing...\033[0m\\n"
 download_file $footing_package_url $footing_package_file
-
 $micromamba_prefix/bin/pip3 install --upgrade --force-reinstall $footing_package_file
-
-if [[ -z "$FOOTING_BOOTSTRAP_SKIP_SYSTEM" ]]
-then
-    $micromamba_prefix/bin/footing self init --system
-else
-    $micromamba_prefix/bin/footing self init
-fi
+$micromamba_prefix/bin/footing self init

@@ -4,7 +4,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 99
-target-version = ['py37']
+target-version = ['py311']
 
 [tool.coverage.run]
 branch = true
@@ -47,8 +47,10 @@ documentation = "https://github.com/FootingDev/footing"
 
 [tool.poetry.dependencies]
 python = ">=3.11.0,<4"
+shellingham = ">=1.5.0"
 
 [tool.poetry.dev-dependencies]
+black = "22.12.0"
 
 [tool.poetry.scripts]
 footing = 'footing.cli:main'
