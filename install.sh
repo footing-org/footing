@@ -55,14 +55,13 @@ printf "\033[0;32mInstalling micromamba...\033[0m\\n"
 download_file $micromamba_installer_url $micromamba_archive_file
 mkdir -p $footing_prefix/toolkits/bin
 cat $micromamba_archive_file | tar -xj -C $footing_prefix/toolkits/bin --strip-components=1 bin/micromamba
-micromamba="$micromamba_prefix/bin/micromamba -r $micromamba_prefix -y --no-rc --no-env"
 
 ###
 # Install python
 ###
 
 printf "\033[0;32mInstalling python...\033[0m\\n"
-$micromamba install python==3.11 -c conda-forge -n base
+$micromamba_prefix/bin/micromamba -r $micromamba_prefix -y --no-rc --no-env install python==3.11 -c conda-forge -n base
 
 ###
 # Install footing

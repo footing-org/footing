@@ -1,11 +1,18 @@
+import base64
+import dataclasses
 import importlib
 import os
 import pathlib
+import platform
 import subprocess
 
 import shellingham
 
 import footing.version
+
+
+def b64_encode(val):
+    return base64.b64encode(str(val).encode("utf-8")).decode("utf-8")
 
 
 def install_path():
@@ -42,6 +49,13 @@ def style(msg, *, color="green"):
             raise ValueError(f"Invalid color - {other}")
 
 
+def pprint(msg, *, color=None):
+    if color:
+        msg = style(msg, color=color)
+
+    print(msg)
+
+
 def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
     """Runs a subprocess shell with check=True by default"""
     if env:
@@ -59,15 +73,14 @@ def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=
     )
 
 
-def conda_cmd(cmd):
+def conda_exe():
+    return f"{micromamba_path()} --no-env --no-rc -r {conda_root_path()}"
+
+
+def conda_cmd(cmd, *, quiet=False):
     """Run a conda command"""
-    micromamba = f"{micromamba_path()} -q --no-env --no-rc -r {conda_root_path()}"
-    return run(f"{micromamba} {cmd}")
-
-
-def conda_run(cmd, *, name):
-    """Run a command within a conda env"""
-    return conda_cmd(f"run -n {name} {cmd}")
+    quiet = "-q" if quiet else ""
+    return run(f"{conda_exe()} {quiet} {cmd}")
 
 
 def detect_shell():
@@ -83,7 +96,33 @@ def detect_shell():
             return pathlib.Path(shell).stem
 
 
-def confirm_prompt(question: str, default: str = None) -> bool:
+def detect_platform():
+    match platform.system():
+        case "Windows":
+            system = "win"
+        case "Darwin":
+            system = "osx"
+        case "Linux":
+            system = "linux"
+        case _:
+            raise ValueError(f"Unsupported OS '{system}'")
+
+    machine = platform.machine()
+    match machine:
+        case "arm64" | "aarch64" | "ppc64le" | "armv6l" | "armv7l":
+            arch = machine
+        case machine.endswith("64"):
+            arch = "64"
+        case other:
+            arch = "32"
+
+    return f"{system}-{arch}"
+
+
+def confirm_prompt(question: str, default: str = None, color: str = None) -> bool:
+    if color:
+        question = style(question, color=color)
+
     if default is None:
         choices = "[y/n]"
     elif default == "y":

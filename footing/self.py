@@ -34,7 +34,7 @@ def init(no_system=False, no_prompt=False, no_shell_integration=False):
         shell_integration = True
         if not no_prompt:
             shell_integration = footing.utils.confirm_prompt(
-                footing.utils.style("Install shell integration?", color="green"), default="y"
+                "Install shell integration?", default="y", color="green"
             )
 
         # Initialize shell integration
@@ -42,12 +42,11 @@ def init(no_system=False, no_prompt=False, no_shell_integration=False):
             footing.shell.init()
 
     if not no_system and not no_prompt:
-        print(
-            footing.utils.style(
-                "Enter your password if prompted to install footing in /usr/local/bin/.",
-                color="green",
-            )
+        footing.utils.pprint(
+            "Enter your password if prompted to install footing in /usr/local/bin/.",
+            color="green",
         )
+
         retry_system = True
         while retry_system:
             try:
@@ -58,13 +57,10 @@ def init(no_system=False, no_prompt=False, no_shell_integration=False):
                 retry_system = False
             except subprocess.CalledProcessError:
                 retry_system = footing.utils.confirm_prompt(
-                    footing.utils.style("Try again?", color="green"),
-                    default="y",
+                    "Try again?", default="y", color="green"
                 )
 
-    print(
-        footing.utils.style(
-            'Installation complete! Run "footing shell" to use footing.',
-            color="green",
-        )
+    footing.utils.pprint(
+        "Installation complete! Restart your shell to use footing.",
+        color="green",
     )
