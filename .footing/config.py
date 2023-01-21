@@ -22,27 +22,27 @@ toolkit_pi, func_pi = footing.config.plugin("toolkit", "func")
 # )
 
 # Toolkits
-_poetry = toolkit_pi.Toolkit([toolkit_pi.Conda(packages=("poetry==1.3.0", "python==3.11"))])
-_black = toolkit_pi.Toolkit([toolkit_pi.Conda(packages=("black==22.12.0", "python==3.11"))])
+poetry = toolkit_pi.Toolkit([toolkit_pi.Conda(packages=("poetry==1.3.0", "python==3.11"))])
+black = toolkit_pi.Toolkit([toolkit_pi.Conda(packages=("black==22.12.0", "python==3.11"))])
 toolkit = toolkit_pi.Toolkit(
     pre_install_hooks=[
         func_pi.Func(
             condition=func_pi.FilesChanged([footing.obj.File("pyproject.toml")]),
             cmd="poetry lock --no-update",
-            toolkit=_poetry,
+            toolkit=poetry,
         ),
     ],
     installers=[
         toolkit_pi.Conda(packages=["python==3.11"]),
         func_pi.Func(
             condition=func_pi.FilesChanged([footing.obj.File("poetry.lock")]),
-            cmd=func_pi.Join(_poetry, "poetry install"),
+            cmd=func_pi.Join(poetry, "poetry install"),
         ),
     ],
 )
 
 # Tasks
-fmt = func_pi.Func(cmd="black .", toolkit=_black)
+fmt = func_pi.Func(cmd="black .", toolkit=black)
 
 tests = func_pi.Func(
     cmd="pytest",

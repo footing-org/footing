@@ -2,6 +2,7 @@ import dataclasses
 import pathlib
 import typing
 
+import footing.cli
 import footing.obj
 import footing.utils
 
@@ -39,16 +40,26 @@ class Func(footing.obj.Obj):
     condition: FilesChanged = None
     toolkit: "footing.toolkit.Toolkit" = None
 
-    def run(self, *, toolkit=None):
-        toolkit = toolkit or self.toolkit
+    @property
+    def entry(self):
+        return {
+            "main": footing.obj.Entry(method=self.run),
+        }
 
+    @property
+    def rendered(self):
+        return str(self.cmd)
+
+    def run(self, *, toolkit=None):
+        cmd = self.rendered
+        toolkit = toolkit or self.toolkit
         if isinstance(toolkit, pathlib.Path):
-            run_args = f"-p {toolkit}"
+            prefix = toolkit
         elif hasattr(toolkit, "conda_env_path"):
             toolkit.build()
-            run_args = f"-p {toolkit.conda_env_path}"
+            prefix = toolkit.conda_env_path
         else:
             raise ValueError(f"Invalid toolkit - {toolkit}")
 
-        footing.utils.pprint(self.cmd, color="green")
-        return footing.utils.conda_cmd(f"run {run_args} {self.cmd}")
+        footing.cli.pprint(cmd.removeprefix(footing.utils.conda_exe() + " "))
+        return footing.utils.conda_run(cmd, prefix=prefix)

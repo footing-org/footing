@@ -1,4 +1,3 @@
-import base64
 import dataclasses
 import importlib
 import os
@@ -11,8 +10,7 @@ import shellingham
 import footing.version
 
 
-def b64_encode(val):
-    return base64.b64encode(str(val).encode("utf-8")).decode("utf-8")
+unset = object()
 
 
 def install_path():
@@ -39,24 +37,7 @@ def footing_path():
     return conda_root_path() / "bin" / "footing"
 
 
-def style(msg, *, color="green"):
-    match color:
-        case "green":
-            return f"\u001b[32m{msg}\u001b[0m"
-        case "red":
-            return f"\u001b[31m{msg}\u001b[0m"
-        case other:
-            raise ValueError(f"Invalid color - {other}")
-
-
-def pprint(msg, *, color=None):
-    if color:
-        msg = style(msg, color=color)
-
-    print(msg)
-
-
-def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
+def run(cmd, *, check=True, stdin=None, stdout=None, stderr=subprocess.PIPE, env=None, cwd=None):
     """Runs a subprocess shell with check=True by default"""
     if env:
         env = os.environ | env
@@ -74,13 +55,29 @@ def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=
 
 
 def conda_exe():
-    return f"{micromamba_path()} --no-env --no-rc -r {conda_root_path()}"
+    return f"{micromamba_path()} --no-rc -r {conda_root_path()}"
 
 
 def conda_cmd(cmd, *, quiet=False):
     """Run a conda command"""
-    quiet = "-q" if quiet else ""
-    return run(f"{conda_exe()} {quiet} {cmd}")
+    quiet = " -q" if quiet else ""
+    return run(f"{conda_exe()}{quiet} {cmd}")
+
+
+def conda_run(cmd, *, quiet=False, name=None, prefix=None):
+    """Use 'conda run' within an env"""
+    conda_exe_str = conda_exe()
+
+    name = f" -n {name}" if name else ""
+    prefix = f" -p {prefix}" if prefix else ""
+    quiet = f" -q" if quiet else ""
+
+    if not cmd.startswith(conda_exe_str):
+        cmd = f"{conda_exe_str} run{name}{prefix}{quiet} {cmd}"
+    else:
+        cmd = f"{cmd}{name}{prefix}{quiet}"
+
+    return run(cmd)
 
 
 def detect_shell():
@@ -117,23 +114,3 @@ def detect_platform():
             arch = "32"
 
     return f"{system}-{arch}"
-
-
-def confirm_prompt(question: str, default: str = None, color: str = None) -> bool:
-    if color:
-        question = style(question, color=color)
-
-    if default is None:
-        choices = "[y/n]"
-    elif default == "y":
-        choices = "[Y/n]"
-    elif default == "n":
-        choices = "[y/N]"
-    else:
-        raise ValueError("Invalid default value")
-
-    reply = None
-    while reply not in ("y", "n"):
-        reply = input(f"{question} {choices}: ").casefold() or default
-
-    return reply == "y"

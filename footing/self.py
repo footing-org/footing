@@ -2,6 +2,7 @@
 import contextlib
 import subprocess
 
+import footing.cli
 import footing.shell
 import footing.utils
 
@@ -33,7 +34,7 @@ def init(no_system=False, no_prompt=False, no_shell_integration=False):
     if not no_shell_integration:
         shell_integration = True
         if not no_prompt:
-            shell_integration = footing.utils.confirm_prompt(
+            shell_integration = footing.cli.confirm_prompt(
                 "Install shell integration?", default="y", color="green"
             )
 
@@ -42,9 +43,8 @@ def init(no_system=False, no_prompt=False, no_shell_integration=False):
             footing.shell.init()
 
     if not no_system and not no_prompt:
-        footing.utils.pprint(
+        footing.cli.pprint(
             "Enter your password if prompted to install footing in /usr/local/bin/.",
-            color="green",
         )
 
         retry_system = True
@@ -56,11 +56,12 @@ def init(no_system=False, no_prompt=False, no_shell_integration=False):
                 )
                 retry_system = False
             except subprocess.CalledProcessError:
-                retry_system = footing.utils.confirm_prompt(
-                    "Try again?", default="y", color="green"
+                retry_system = footing.cli.confirm_prompt(
+                    "Try again?",
+                    default="y",
                 )
 
-    footing.utils.pprint(
+    footing.cli.pprint(
         "Installation complete! Restart your shell to use footing.",
         color="green",
     )

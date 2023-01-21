@@ -61,7 +61,7 @@ def register(**kwargs):
 
 @ensure_loaded()
 def obj(name):
-    return _registry[name]
+    return _registry.get(name, None)
 
 
 @ensure_loaded()

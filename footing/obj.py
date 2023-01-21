@@ -1,5 +1,7 @@
 import contextlib
 import dataclasses
+import functools
+import os
 import re
 import typing
 
@@ -43,18 +45,27 @@ class FileRef:
 
 
 @dataclasses.dataclass
+class Entry:
+    method: typing.Any
+
+
+@dataclasses.dataclass
 class Obj:
     """A core footing object"""
 
-    @contextlib.contextmanager
-    def cache_ref(self):
-        """Ensure the ref is cached during the context manager"""
-        self._cached_ref = None
-        yield
-        del self._cached_ref
+    ###
+    # Cached properties. We use private variables so that they aren't hashed
+    ###
 
-    @property
-    def ref(self):
+    def clear_cached_properties(self):
+        """Clear all cached properties"""
+        for field in dir(self.__class__):
+            val = getattr(self.__class__, field)
+            if isinstance(val, functools.cached_property):
+                delattr(self, field)
+
+    @functools.cached_property
+    def _ref(self):
         if getattr(self, "_cached_ref", None):
             return self._cached_ref
 
@@ -72,14 +83,26 @@ class Obj:
 
         return ref
 
-    def uncache_ref(self):
-        if hasattr(self, "_cached_ref"):
-            self._cached_ref = None
+    @property
+    def ref(self):
+        return self._ref
+
+    ###
+    # Other properties
+    ###
+
+    @property
+    def entry(self):
+        return {}
 
     @property
     def name(self):
         """The configured name of this object"""
         return getattr(self, "_name", None)
+
+    ###
+    # Properties and methods for footing's cache
+    ###
 
     @property
     def cache_key(self):
@@ -97,6 +120,9 @@ class Obj:
         cache_root.mkdir(exist_ok=True)
         with open(cache_root / self.cache_key, "wb") as file:
             file.write(orjson.dumps(val))
+
+    def cache_remove(self, val):
+        os.remove(footing.utils.install_path() / "cache" / self.cache_key)
 
 
 @dataclasses.dataclass

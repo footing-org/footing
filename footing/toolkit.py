@@ -1,7 +1,11 @@
-import base64
 import dataclasses
+import functools
+import os
 import pathlib
+import stat
 import typing
+
+import xxhash
 
 import footing.obj
 import footing.func
@@ -14,14 +18,10 @@ class Conda(footing.func.Func):
     channels: typing.List[str] = dataclasses.field(default_factory=lambda: ["conda-forge"])
 
     @property
-    def cmd(self):
+    def rendered(self):
         packages = " ".join(self.packages)
         channels = " ".join(f"-c {c}" for c in self.channels)
         return f"{footing.utils.conda_exe()} install -q -y {packages} {channels}"
-
-    @cmd.setter
-    def cmd(self, _):
-        pass
 
 
 @dataclasses.dataclass
@@ -36,19 +36,42 @@ class Toolkit(footing.obj.Obj):
     pre_install_hooks: typing.List[footing.func.Func] = dataclasses.field(default_factory=list)
     conda_env_root: str = None
     platform: str = None
+    editable: bool = False
+
+    # TODO: Make these attributes private and not part of the hash
+    cmd: str = None
 
     def __post_init__(self):
         self.conda_env_root = self.conda_env_root or str(footing.utils.conda_root_path() / "envs")
         self.platform = self.platform or footing.utils.detect_platform()
 
+    ###
+    # Cached properties. We use private variables so that they aren't hashed
+    ###
+
+    @functools.cached_property
+    def _conda_env_name(self):
+        # TODO: Ensure names from other projects don't collide when choosing an env name.
+        name = self.name or self.ref.hash
+        if self.name or self.editable:
+            name += f"-{xxhash.xxh32_hexdigest(str(pathlib.Path.cwd()))}"
+
+        return name
+
     @property
     def conda_env_name(self):
-        if self.name:
-            cwd = pathlib.Path.cwd()
-            conda_env_root_b64 = footing.utils.b64_encode(self.conda_env_root)
-            return f"{cwd.parent.name}-{self.name}-{conda_env_root_b64}"
-        else:
-            return self.ref.hash
+        return self._conda_env_name
+
+    ###
+    # Other properties
+    ###
+
+    @property
+    def entry(self):
+        return {
+            "build": footing.obj.Entry(method=self.build),
+            "/": footing.obj.Entry(method=self.exec),
+        }
 
     @property
     def conda_env_path(self):
@@ -58,32 +81,58 @@ class Toolkit(footing.obj.Obj):
     def cache_key(self):
         return self.conda_env_name
 
-    def exe(self, exe):
-        """Retrieve the path of an executable in this toolkit"""
-        return pathlib.Path(self.conda_env_root) / self.conda_env_name / "bin" / exe
+    ###
+    # Core methods
+    ###
+
+    def exec(self, exe, args):
+        """Execute an executable in this toolkit"""
+        self.build()
+
+        exe_bin = pathlib.Path(self.conda_env_root) / self.conda_env_name / "bin"
+        if not exe:
+            os.execvp("ls", ["ls", str(exe_bin)])
+
+        exe_path = exe_bin / exe
+        if not exe_path.exists():
+            raise ValueError(f'Executable "{exe}" does not exist in this toolkit.')
+
+        os.execv(str(exe_path), [exe] + args)
 
     def build(self):
         """Create a conda env with the tools installed"""
-        with self.cache_ref():
-            old_cache_obj = self.cache_read(CachedBuild)
-            new_cache_obj = CachedBuild(path=str(self.conda_env_path), hash=self.ref.hash)
-            if old_cache_obj == new_cache_obj:
+        # TODO: Find a better way to shorten environment names and avoid global
+        # collisions
+        if len(str(self.conda_env_path)) > 114:
+            raise RuntimeError(
+                f"The installation path of this toolkit is too long ({len(self.conda_env_path)} > 113)."
+                " Try shortening your toolkit name."
+            )
+
+        old_cache_obj = self.cache_read(CachedBuild)
+        new_cache_obj = CachedBuild(path=str(self.conda_env_path), hash=self.ref.hash)
+        if old_cache_obj == new_cache_obj:
+            if pathlib.Path(old_cache_obj.path).exists():
                 return
+            else:
+                # The cached object is no longer valid. Remove it
+                self.cache_remove(old_cache_obj)
 
-            footing.utils.pprint(f"Building toolkit {self.conda_env_name}", color="green")
+        # Run pre-install hooks.
+        for func in self.pre_install_hooks:
+            func.run()
 
-            # Run pre-install hooks. Reset the ref since hooks can change the hash
-            # and the env path
-            for func in self.pre_install_hooks:
-                func.run()
-                self.uncache_ref()
+        if self.pre_install_hooks:
+            # The ref might have changed as a result of running pre-install hooks.
+            # Clear cached properties just in case.
+            self.clear_cached_properties()
 
-            # Create the env and run installers
-            footing.utils.conda_cmd(f"create -q -y -p {self.conda_env_path}")
+        # Create the env and run installers
+        footing.utils.conda_cmd(f"create -q -y -p {self.conda_env_path}")
 
-            for installer in self.installers:
-                installer.run(toolkit=self.conda_env_path)
+        for installer in self.installers:
+            installer.run(toolkit=self.conda_env_path)
 
-            self.cache_write(new_cache_obj)
+        self.cache_write(new_cache_obj)
 
-            # TODO: Warn when the hash has changed midway. This indicates an improper setup
+        # TODO: Warn when the hash has changed midway. This indicates an improper setup
