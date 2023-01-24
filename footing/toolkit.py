@@ -38,9 +38,6 @@ class Toolkit(footing.obj.Obj):
     platform: str = None
     editable: bool = False
 
-    # TODO: Make these attributes private and not part of the hash
-    cmd: str = None
-
     def __post_init__(self):
         self.conda_env_root = self.conda_env_root or str(footing.utils.conda_root_path() / "envs")
         self.platform = self.platform or footing.utils.detect_platform()

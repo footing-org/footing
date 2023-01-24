@@ -54,6 +54,13 @@ def run(cmd, *, check=True, stdin=None, stdout=None, stderr=subprocess.PIPE, env
     )
 
 
+def installed(*names):
+    """
+    Returns True if all names are installed under footing's bin folder
+    """
+    return all([(conda_root_path() / "bin" / name).exists() for name in names])
+
+
 def conda_exe():
     return f"{micromamba_path()} --no-rc -r {conda_root_path()}"
 

@@ -8,18 +8,8 @@ import sys
 _registry = None
 
 
-def plugin(*names):
+def module(*names):
     return [importlib.import_module(f"footing.{name}") for name in names]
-
-
-def secret_import(path):
-    """Alternative way to import a module that allows importing of hidden
-    directories and files."""
-    import os
-    import imp
-
-    with open(path, "rb") as fp:
-        return imp.load_module("config.py", fp, ".footing/config.py", (".py", "rb", imp.PY_SOURCE))
 
 
 def load():

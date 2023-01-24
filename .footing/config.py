@@ -1,9 +1,7 @@
-import dataclasses
-
 import footing.config
-import footing.obj
 
-toolkit_pi, func_pi = footing.config.plugin("toolkit", "func")
+
+toolkit_m, func_m, obj_m, k8s_m = footing.config.module("toolkit", "func", "obj", "k8s")
 
 # Repository
 # origin_repo = repo.Remote(
@@ -21,33 +19,39 @@ toolkit_pi, func_pi = footing.config.plugin("toolkit", "func")
 #    )
 # )
 
+# Variables
+# env = footing.core.Var(name="env", label="Environment", description="Hello", type=str)
+
 # Toolkits
-poetry = toolkit_pi.Toolkit([toolkit_pi.Conda(packages=("poetry==1.3.0", "python==3.11"))])
-black = toolkit_pi.Toolkit([toolkit_pi.Conda(packages=("black==22.12.0", "python==3.11"))])
-toolkit = toolkit_pi.Toolkit(
+poetry = toolkit_m.Toolkit([toolkit_m.Conda(packages=("poetry==1.3.0", "python==3.11"))])
+black = toolkit_m.Toolkit([toolkit_m.Conda(packages=("black==22.12.0", "python==3.11"))])
+toolkit = toolkit_m.Toolkit(
     pre_install_hooks=[
-        func_pi.Func(
-            condition=func_pi.FilesChanged([footing.obj.File("pyproject.toml")]),
+        func_m.Func(
+            condition=func_m.FilesChanged([obj_m.File("pyproject.toml")]),
             cmd="poetry lock --no-update",
             toolkit=poetry,
         ),
     ],
     installers=[
-        toolkit_pi.Conda(packages=["python==3.11"]),
-        func_pi.Func(
-            condition=func_pi.FilesChanged([footing.obj.File("poetry.lock")]),
-            cmd=func_pi.Join(poetry, "poetry install"),
+        toolkit_m.Conda(packages=["python==3.11"]),
+        func_m.Func(
+            condition=func_m.FilesChanged([obj_m.File("poetry.lock")]),
+            cmd=func_m.Join(poetry, "poetry install"),
         ),
     ],
 )
 
 # Tasks
-fmt = func_pi.Func(cmd="black .", toolkit=black)
+fmt = func_m.Func(cmd="black .", toolkit=black)
 
-tests = func_pi.Func(
+tests = func_m.Func(
     cmd="pytest",
     toolkit=toolkit,
 )
+
+# Runners
+dev_pod = k8s_m.Pod()
 
 ###
 # Example commands
