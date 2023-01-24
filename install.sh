@@ -27,6 +27,7 @@ os=$(uname)
 
 uname
 uname -m
+printf "done\\n"
 exit 1
 
 if [[ "$os" == "Linux" ]]; then
