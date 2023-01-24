@@ -52,9 +52,6 @@ fi
 micromamba_installer_dir=$(mktemp -d)
 micromamba_archive_file="$micromamba_installer_dir/micromamba.tar.gz"
 micromamba_installer_url="https://micro.mamba.pm/api/micromamba/$platform-$arch/latest"
-printf "ARCH\\n"
-printf "https://micro.mamba.pm/api/micromamba/$platform-$arch/latest\n\n"
-exit 1
 micromamba_prefix=$footing_prefix/toolkits
 
 printf "\033[0;32mInstalling micromamba...\033[0m\\n"
