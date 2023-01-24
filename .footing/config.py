@@ -50,10 +50,7 @@ tests = func_m.Func(
     toolkit=toolkit,
 )
 
-wheel = func_m.Func(
-    cmd="sh build.sh",
-    toolkit=poetry
-)
+wheel = func_m.Func(cmd="sh build.sh", toolkit=poetry)
 
 # Runners
 dev_pod = k8s_m.Pod()

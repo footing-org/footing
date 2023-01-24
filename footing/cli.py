@@ -171,6 +171,8 @@ def main():
         args_to_parse = sys.argv[1 : command_i + 1]
 
     # Construct a proper CLI parser based on the command or footing obj
+    # TODO: Don't try to load objects this early. Check for main commands
+    # first before loading a config file
     obj = get_obj(command)
     match command:
         case "self":
