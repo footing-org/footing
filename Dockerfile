@@ -2,7 +2,7 @@ ARG BASE_IMAGE=debian:bullseye-slim
 
 # Mutli-stage build to keep final image small. Otherwise end up with
 # curl and openssl installed
-FROM --platform=$BUILDPLATFORM $BASE_IMAGE AS builder
+FROM $BASE_IMAGE AS builder
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bzip2 \
