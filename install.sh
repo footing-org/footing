@@ -25,6 +25,9 @@ download_file() {
 arch=$(uname -m)
 os=$(uname)
 
+uname
+exit 1
+
 if [[ "$os" == "Linux" ]]; then
 	platform="linux"
 	if [[ "$arch" == "aarch64" ]]; then
