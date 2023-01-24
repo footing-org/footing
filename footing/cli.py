@@ -125,9 +125,12 @@ def get_obj(command):
     Footing objects are only returned if they are registered
     and have entry points
     """
-    if obj := footing.config.obj(command):
-        if obj.entry:
-            return obj
+    try:
+        if obj := footing.config.obj(command):
+            if obj.entry:
+                return obj
+    except FileNotFoundError:
+        return None
 
 
 def main():
