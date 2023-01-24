@@ -26,6 +26,7 @@ arch=$(uname -m)
 os=$(uname)
 
 uname
+uname -m
 exit 1
 
 if [[ "$os" == "Linux" ]]; then
