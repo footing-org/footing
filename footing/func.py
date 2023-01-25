@@ -50,7 +50,7 @@ class Func(footing.obj.Obj):
     def rendered(self):
         return str(self.cmd)
 
-    def run(self, *, toolkit=None):
+    def run(self, *, toolkit=None, cwd=None):
         cmd = self.rendered
         toolkit = toolkit or self.toolkit
         if isinstance(toolkit, pathlib.Path):

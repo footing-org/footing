@@ -71,7 +71,7 @@ def conda_cmd(cmd, *, quiet=False):
     return run(f"{conda_exe()}{quiet} {cmd}")
 
 
-def conda_run(cmd, *, quiet=False, name=None, prefix=None):
+def conda_run(cmd, *, quiet=False, name=None, prefix=None, cwd=None):
     """Use 'conda run' within an env"""
     conda_exe_str = conda_exe()
 
@@ -84,7 +84,7 @@ def conda_run(cmd, *, quiet=False, name=None, prefix=None):
     else:
         cmd = f"{cmd}{name}{prefix}{quiet}"
 
-    return run(cmd)
+    return run(cmd, cwd=cwd)
 
 
 def detect_shell():

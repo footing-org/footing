@@ -1,6 +1,8 @@
 import dataclasses
 import os
+import pathlib
 import subprocess
+import tempfile
 
 import footing.obj
 import footing.utils
@@ -69,11 +71,31 @@ class Pod(footing.obj.Obj):
 
         self.render()
 
+    @property
+    def is_on_pod(self):
+        return "FOOTING_POD" in os.environ
+
     def run(self, func):
         """Run a function"""
-        self.bootstrap()
+        if self.is_on_pod:
+            self.bootstrap()
+
+            # Ensure the repo is checked out and up to date
+            footing.cli.pprint("checking out code")
+            try:
+                footing.utils.run(
+                    f"git clone {self.repo} --branch {self.branch} --single-branch /project"
+                )
+            except subprocess.CalledProcessError:
+                footing.utils.run("git -C /project pull")
+        else:
+            self.build()
 
     def build(self):
         # TODO: Run these methods automatically as part of build process. Do the same
         # for caching
         self.bootstrap()
+
+        with tempfile.TemporaryDirectory() as tmp_d:
+            pod_yml_path = pathlib.Path(tmp_d) / "pod.yml"
+            footing.utils.run(f"kubectl apply -f {pod_yml_path}")
