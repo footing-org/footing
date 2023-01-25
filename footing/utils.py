@@ -115,7 +115,7 @@ def detect_platform():
     match machine:
         case "arm64" | "aarch64" | "ppc64le" | "armv6l" | "armv7l":
             arch = machine
-        case machine.endswith("64"):
+        case machine if machine.endswith("64"):
             arch = "64"
         case other:
             arch = "32"

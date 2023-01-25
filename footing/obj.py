@@ -62,7 +62,10 @@ class Obj:
         for field in dir(self.__class__):
             val = getattr(self.__class__, field)
             if isinstance(val, functools.cached_property):
-                delattr(self, field)
+                try:
+                    delattr(self, field)
+                except AttributeError:
+                    pass  # Thrown when cached property has not yet been computed
 
     @functools.cached_property
     def _ref(self):
@@ -123,6 +126,16 @@ class Obj:
 
     def cache_remove(self, val):
         os.remove(footing.utils.install_path() / "cache" / self.cache_key)
+
+    ###
+    # Other core methods
+    ###
+
+    def render(self):
+        """Compute dynamically rendered attributes"""
+        self.lazy_post_init()
+        self.clear_cached_properties()
+        return self
 
 
 @dataclasses.dataclass
