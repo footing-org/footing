@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN mkdir /footing
 ENV FOOTING_SELF_INIT_NO_SHELL_INTEGRATION=1 FOOTING_SELF_INIT_NO_SYSTEM=1 FOOTING_BRANCH=mvp PREFIX=/footing
 RUN curl https://raw.githubusercontent.com/wesleykendall/footing/mvp/install.sh | /bin/bash
+RUN /footing/toolkits/bin/micromamba -r /footing/toolkits/ install git -n base -c conda-forge -y
 RUN rm -rf /footing/toolkits/pkgs
 
 # Final image

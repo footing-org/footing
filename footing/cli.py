@@ -13,7 +13,7 @@ import footing.config
 unset = object()
 
 
-def style(msg, *, color=None, weight=unset):
+def style(msg, *, color=None, weight=unset, icon=True):
     weight = "bold" if weight is unset else weight
 
     match color:
@@ -30,13 +30,14 @@ def style(msg, *, color=None, weight=unset):
         case other if other is not None:
             raise ValueError(f"Invalid weight - {other}")
 
-    msg = "🐐 " + msg
+    if icon:
+        msg = "🐐 " + msg
 
     return msg
 
 
-def pprint(msg, *, color=None, weight=unset):
-    msg = style(msg, color=color, weight=weight)
+def pprint(msg, *, color=None, weight=unset, icon=True):
+    msg = style(msg, color=color, weight=weight, icon=icon)
 
     print(msg)
 

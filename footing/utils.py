@@ -29,15 +29,19 @@ def condabin_path():
     return conda_root_path() / "condabin"
 
 
+def bin_path(executable):
+    return conda_root_path() / "bin" / executable
+
+
 def micromamba_path():
-    return conda_root_path() / "bin" / "micromamba"
+    return bin_path("micromamba")
 
 
 def footing_path():
-    return conda_root_path() / "bin" / "footing"
+    return bin_path("footing")
 
 
-def run(cmd, *, check=True, stdin=None, stdout=None, stderr=subprocess.PIPE, env=None, cwd=None):
+def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
     """Runs a subprocess shell with check=True by default"""
     if env:
         env = os.environ | env
@@ -58,7 +62,7 @@ def installed(*names):
     """
     Returns True if all names are installed under footing's bin folder
     """
-    return all([(conda_root_path() / "bin" / name).exists() for name in names])
+    return all([bin_path(name).exists() for name in names])
 
 
 def conda_exe():

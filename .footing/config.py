@@ -52,7 +52,12 @@ tests = func_m.Func(
 
 wheel = func_m.Func(
     cmd="bash -c 'sh build.sh && git add -u && git commit -m \"new release\" && git push origin mvp'",
-    toolkit=poetry
+    toolkit=poetry,
+)
+
+docker = func_m.Func(
+    cmd="bash -c 'docker buildx build -t wesleykendall/footing --no-cache --platform linux/amd64,linux/arm64/v8 . --push'",
+    toolkit=poetry,
 )
 
 # Runners
