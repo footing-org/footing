@@ -50,8 +50,13 @@ def register(**kwargs):
 
 
 @ensure_loaded()
-def obj(name):
-    return _registry.get(name, None)
+def obj(name, rendered=False):
+    obj = _registry.get(name, None)
+
+    if obj and rendered:
+        obj.recursive_render()
+
+    return obj
 
 
 @ensure_loaded()

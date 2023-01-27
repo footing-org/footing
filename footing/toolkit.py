@@ -65,7 +65,7 @@ class Toolkit(footing.obj.Obj):
 
     @property
     def entry(self):
-        return {
+        return super().entry | {
             "build": footing.obj.Entry(method=self.build),
             "/": footing.obj.Entry(method=self.exec),
         }
@@ -102,8 +102,6 @@ class Toolkit(footing.obj.Obj):
 
     def build(self):
         """Create a conda env with the tools installed"""
-        self.render()
-
         # TODO: Find a better way to shorten environment names and avoid global
         # collisions
         if len(str(self.conda_env_path)) > 114:
@@ -126,8 +124,8 @@ class Toolkit(footing.obj.Obj):
 
         if self.pre_install_hooks:
             # The ref might have changed as a result of running pre-install hooks.
-            # Clear cached properties just in case.
-            self.clear_cached_properties()
+            # Clear the cached ref just in case
+            del self.ref
 
         # Create the env and run installers
         footing.utils.conda_cmd(f"create -q -y -p {self.conda_env_path}")

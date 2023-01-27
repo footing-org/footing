@@ -115,7 +115,8 @@ def add_all_parsers(subparsers):
 
 
 def call_obj_entry(command, subcommand, kwargs):
-    entry = footing.config.obj(command).entry[subcommand]
+    """Loads objects and calls entry points"""
+    entry = footing.config.obj(command, rendered=True).entry[subcommand]
     entry.method(**kwargs)
 
 

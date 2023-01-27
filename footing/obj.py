@@ -56,6 +56,40 @@ class CachedBuild:
 
 
 @dataclasses.dataclass
+class Lazy:
+    @property
+    def is_rendered(self):
+        return getattr(self, "_is_rendered", False)
+
+    def render(self):
+        pass
+
+    def recursive_render(self):
+        return _render_inner(self)
+
+
+def _render_inner(obj):
+    if hasattr(type(obj), "__dataclass_fields__"):
+        for f in dataclasses.fields(obj):
+            _render_inner(getattr(obj, f.name))
+
+        if isinstance(obj, Lazy):
+            if not obj.is_rendered:
+                obj.render()
+                obj._is_rendered = True
+
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            _render_inner(v)
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            _render_inner(k)
+            _render_inner(v)
+
+    return obj
+
+
+@dataclasses.dataclass
 class Obj:
     """A core footing object"""
 
@@ -63,21 +97,8 @@ class Obj:
     # Cached properties. We use private variables so that they aren't hashed
     ###
 
-    def clear_cached_properties(self):
-        """Clear all cached properties"""
-        for field in dir(self.__class__):
-            val = getattr(self.__class__, field)
-            if isinstance(val, functools.cached_property):
-                try:
-                    delattr(self, field)
-                except AttributeError:
-                    pass  # Thrown when cached property has not yet been computed
-
     @functools.cached_property
     def _ref(self):
-        if getattr(self, "_cached_ref", None):
-            return self._cached_ref
-
         serialized = orjson.dumps(self)
         files = sorted(file.decode("utf-8") for file in set(re.findall(FILE_PATH_RE, serialized)))
         full_hash = obj_hash = hash(serialized)
@@ -85,12 +106,7 @@ class Obj:
             files_hash = "".join(hash_file(file) for file in files)
             full_hash = hash(obj_hash + files_hash)
 
-        ref = ObjRef(obj_hash=obj_hash, files=files, hash=full_hash)
-
-        if hasattr(self, "_cached_ref"):
-            self._cached_ref = ref
-
-        return ref
+        return ObjRef(obj_hash=obj_hash, files=files, hash=full_hash)
 
     @property
     def ref(self):
@@ -144,36 +160,6 @@ class Obj:
         new_cache_obj = self.cache_obj
         old_cache_obj = self.read_cache()
         return old_cache_obj == new_cache_obj
-
-    ###
-    # Other core methods
-    ###
-
-    def bin(self, bin, package=None):
-        """Return a binary. Install it if not installed"""
-        if not footing.utils.installed_bin(bin):
-            footing.cli.pprint(f"install {package or bin}")
-            footing.utils.conda_cmd(f"install {package or bin} -y -c conda-forge -n base")
-
-        return footing.utils.bin_path(bin)
-
-    def mod(self, mod, package=None):
-        """Return a module. Install it if not installed"""
-        if not footing.utils.installed_mod(mod):
-            footing.cli.pprint(f"install {package or mod}")
-            footing.utils.conda_cmd(f"install {package or mod} -y -c conda-forge -n base")
-
-        return importlib.import_module(mod)
-
-    def lazy_post_init(self):
-        """__post_init__ but lazy"""
-        pass
-
-    def render(self):
-        """Compute dynamically rendered attributes"""
-        self.lazy_post_init()
-        self.clear_cached_properties()
-        return self
 
 
 @dataclasses.dataclass

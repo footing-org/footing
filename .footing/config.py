@@ -61,7 +61,8 @@ docker = func_m.Func(
 )
 
 # Runners
-dev_pod = k8s_m.GitPod(
+dev_pod = k8s_m.Pod(
+    runner=k8s_m.GitRunner(),
     services=[
         k8s_m.Service(
             name="db",
@@ -71,7 +72,7 @@ dev_pod = k8s_m.GitPod(
                 k8s_m.Env(name="POSTGRES_USER", value="postgres")
             ],
             ports=[
-                k8s_m.Port(containerPort=5432)
+                k8s_m.Port(container_port=5432)
             ]
         )
     ]

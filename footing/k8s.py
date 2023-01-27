@@ -9,8 +9,21 @@ import typing
 
 import xxhash
 
+import footing.ext
 import footing.obj
 import footing.utils
+
+
+def asdict(obj):
+    """Dumps k8s dictionaries, which have camelcase keys"""
+    def snake_to_camel(val):
+        components = val.split("_")
+        return components[0] + "".join(x.title() for x in components[1:])
+
+    def dict_factory(vals):
+        return {snake_to_camel(key): val for key, val in vals}
+
+    return dataclasses.asdict(obj, dict_factory=dict_factory)
 
 
 @dataclasses.dataclass
@@ -21,7 +34,7 @@ class Env:
 
 @dataclasses.dataclass
 class Port:
-    containerPort: int
+    container_port: int
 
 
 @dataclasses.dataclass
@@ -30,6 +43,80 @@ class Service:
     name: str
     env: typing.List[Env] = dataclasses.field(default_factory=list)
     ports: typing.List[Port] = dataclasses.field(default_factory=list)
+    image_pull_policy: str = None
+    command: typing.List[str] = None
+    args: typing.List[str] = None
+
+
+@dataclasses.dataclass
+class Runner(Service):
+    image: str = "wesleykendall/footing:latest"
+    name: str = "runner"
+    image_pull_policy: str = "Always"
+    command: typing.List[str] = dataclasses.field(default_factory=lambda: ["/bin/bash", "-c", "--"])
+    args: typing.List[str] = dataclasses.field(default_factory=lambda: ["trap : TERM INT; sleep infinity & wait"])
+
+    @property
+    def resource_name(self):
+        return self.name
+
+    def kubectl_exec_cmd(self, exe, args):
+        # TODO: properly escape args
+        return f"footing {exe} {' '.join(args)}"
+
+
+@dataclasses.dataclass
+class GitRunner(Runner, footing.obj.Lazy):
+    repo: str = None
+    branch: str = None
+
+    def render(self):
+        """Lazily compute properties"""
+        if not self.repo:
+            out = footing.utils.run(
+                f"{self.git_bin} config --get remote.origin.url", stdout=subprocess.PIPE
+            )
+            url = out.stdout.decode("utf-8")
+
+            if url.startswith("git@github.com"):
+                repo = url.strip().split(":", 1)[1][:-4]
+                self.repo = f"https://github.com/{repo}"
+            elif url.startswith("https://github.com"):
+                self.repo = url
+            else:
+                raise ValueError(f'Invalid git remote repo URL - "{url}"')
+
+        if not self.branch:
+            out = footing.utils.run(
+                f"{self.git_bin} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
+            )
+            self.branch = out.stdout.decode("utf-8").strip()
+
+    ###
+    # Core properties and extensions
+    ###
+
+    @property
+    def resource_name(self):
+        return f"{self.repo.split('/')[-1]}-{self.branch}".replace("_", "-")
+
+    @property
+    def git_bin(self):
+        return self._git_bin
+
+    @functools.cached_property
+    def _git_bin(self):
+        return footing.ext.bin("git")
+
+    ###
+    # Core methods and properties
+    ###
+
+    def kubectl_exec_cmd(self, exe, args):
+        clone_cmd = f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null"
+        pull_cmd = f"git -C /project reset --hard > /dev/null && git -C /project pull > /dev/null"
+        return f"(({clone_cmd}) || ({pull_cmd})) && {super().kubectl_exec_cmd(exe, args)}"
+
 
 
 @dataclasses.dataclass
@@ -39,13 +126,13 @@ class Cluster(footing.obj.Obj):
 
 
 @dataclasses.dataclass
-class Pod(footing.obj.Obj):
+class Pod(footing.obj.Obj, footing.obj.Lazy):
+    runner: Runner = dataclasses.field(default_factory=Runner)
     spec: str = None
     services: typing.List[Service] = dataclasses.field(default_factory=list)
 
-    def lazy_post_init(self):
-        """Lazily compute post_init properties"""
-
+    def render(self):
+        """Lazy properties"""
         spec = {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -57,10 +144,10 @@ class Pod(footing.obj.Obj):
                     "imagePullPolicy": "Always", 
                     "command": ["/bin/bash", "-c", "--"],
                     "args": ["trap : TERM INT; sleep infinity & wait"]
-                }] + [dataclasses.asdict(service) for service in self.services]
+                }] + [asdict(service) for service in self.services]
             }
         }
-        yaml = self.mod("yaml", package="pyyaml")
+        yaml = footing.ext.mod("yaml", package="pyyaml")
         self.spec = yaml.dump(spec)
 
     ###
@@ -69,7 +156,7 @@ class Pod(footing.obj.Obj):
 
     @property
     def entry(self):
-        return {
+        return super().entry | {
             "build": footing.obj.Entry(method=self.build),
             "delete": footing.obj.Entry(method=self.delete),
             "/": footing.obj.Entry(method=self.exec),
@@ -77,7 +164,18 @@ class Pod(footing.obj.Obj):
 
     @property
     def resource_name(self):
-        return (self.name or "pod").replace("_", "-")
+        return self._resource_name
+
+    @functools.cached_property
+    def _resource_name(self):
+        name = (self.name or "pod").replace("_", "-")
+        name += f"-{self.runner.resource_name}"
+
+        # TODO: Might have to consider a better hashing strategy based on how
+        # a shared cluster is used
+        hash = xxhash.xxh32_hexdigest(f"{name}-{self.runner}")
+        max_name_len = 253 - (len(hash) + 1)
+        return f"{name[:max_name_len]}-{hash}"
 
     @property
     def kubectl_bin(self):
@@ -85,7 +183,7 @@ class Pod(footing.obj.Obj):
 
     @functools.cached_property
     def _kubectl_bin(self):
-        return self.bin("kubectl", package="kubernetes")
+        return footing.ext.bin("kubectl", package="kubernetes")
 
     ###
     # Core methods and properties
@@ -93,7 +191,7 @@ class Pod(footing.obj.Obj):
 
     def kubectl_exec_cmd(self, exe, args):
         # TODO: properly escape args
-        return f"footing {exe} {' '.join(args)}"
+        return self.runner.kubectl_exec_cmd(exe, args)
 
     def exec(self, exe, args, retry=True):
         """Exec a function in this pod"""
@@ -109,7 +207,7 @@ class Pod(footing.obj.Obj):
                 cmd = self.kubectl_exec_cmd(exe, args)
 
                 footing.utils.run(
-                    f"{self.kubectl_bin} exec -c runner {self.resource_name} -- bash -c '{cmd}'",
+                    f"{self.kubectl_bin} exec --stdin --tty -c runner {self.resource_name} -- bash -c '{cmd}'",
                     stderr=subprocess.PIPE,
                 )
         except subprocess.CalledProcessError as exc:
@@ -126,10 +224,6 @@ class Pod(footing.obj.Obj):
                 raise
 
     def build(self, cache=True):
-        # TODO: Run these methods automatically as part of build process. Do the same
-        # for caching
-        self.render()
-
         if self.is_cached and cache:
             return
 
@@ -149,8 +243,6 @@ class Pod(footing.obj.Obj):
         self.write_cache()
 
     def delete(self):
-        self.render()
-
         self.delete_cache()
 
         try:
@@ -220,7 +312,7 @@ class GitPod(Pod):
 
     @functools.cached_property
     def _git_bin(self):
-        return self.bin("git")
+        return footing.ext.bin("git")
 
     ###
     # Core methods and properties
