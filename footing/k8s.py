@@ -86,7 +86,8 @@ class Pod(footing.obj.Obj):
     ###
 
     def kubectl_exec_cmd(self, exe, args):
-        return f"footing {exe}"
+        # TODO: properly escape args
+        return f"footing {exe} {' '.join(args)}"
 
     def exec(self, exe, args, retry=True):
         """Exec a function in this pod"""
@@ -102,7 +103,7 @@ class Pod(footing.obj.Obj):
                 cmd = self.kubectl_exec_cmd(exe, args)
 
                 footing.utils.run(
-                    f"{self.kubectl_bin} exec -c runner -p {self.resource_name} -- bash -c '{cmd}'",
+                    f"{self.kubectl_bin} exec -c runner {self.resource_name} -- bash -c '{cmd}'",
                     stderr=subprocess.PIPE,
                 )
         except subprocess.CalledProcessError as exc:
@@ -220,5 +221,6 @@ class GitPod(Pod):
     ###
 
     def kubectl_exec_cmd(self, exe, args):
-        cmd = f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null || git -C /project pull > /dev/null"
-        return f"({cmd}) && {super().kubectl_exec_cmd(exe, args)}"
+        clone_cmd = f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null"
+        pull_cmd = f"git -C /project reset --hard > /dev/null && git -C /project pull > /dev/null"
+        return f"(({clone_cmd}) || ({pull_cmd})) && {super().kubectl_exec_cmd(exe, args)}"
