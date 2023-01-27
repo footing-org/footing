@@ -33,6 +33,10 @@ def bin_path(executable):
     return conda_root_path() / "bin" / executable
 
 
+def mod_path(mod):
+    return conda_root_path() / "lib" / "python3.11" / "site-packages" / mod
+
+
 def micromamba_path():
     return bin_path("micromamba")
 
@@ -58,11 +62,18 @@ def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=
     )
 
 
-def installed(*names):
+def installed_bin(*names):
     """
-    Returns True if all names are installed under footing's bin folder
+    Returns True if all binaries are installed under footing's bin folder
     """
     return all([bin_path(name).exists() for name in names])
+
+
+def installed_mod(*names):
+    """
+    Returns True if all modules are installed under footing's Python site packages
+    """
+    return all([mod_path(name).exists() for name in names])
 
 
 def conda_exe():

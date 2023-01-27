@@ -1,6 +1,7 @@
 import contextlib
 import dataclasses
 import functools
+import importlib
 import os
 import re
 import typing
@@ -148,13 +149,21 @@ class Obj:
     # Other core methods
     ###
 
-    def ext(self, ext, package=None):
-        """Return an extension. Install it if not installed"""
-        if not footing.utils.installed(ext):
-            footing.cli.pprint(f"install {package or ext}")
-            footing.utils.conda_cmd(f"install {package or ext} -y -c conda-forge -n base")
+    def bin(self, bin, package=None):
+        """Return a binary. Install it if not installed"""
+        if not footing.utils.installed_bin(bin):
+            footing.cli.pprint(f"install {package or bin}")
+            footing.utils.conda_cmd(f"install {package or bin} -y -c conda-forge -n base")
 
-        return footing.utils.bin_path(ext)
+        return footing.utils.bin_path(bin)
+
+    def mod(self, mod, package=None):
+        """Return a module. Install it if not installed"""
+        if not footing.utils.installed_mod(mod):
+            footing.cli.pprint(f"install {package or mod}")
+            footing.utils.conda_cmd(f"install {package or mod} -y -c conda-forge -n base")
+
+        return importlib.import_module(mod)
 
     def lazy_post_init(self):
         """__post_init__ but lazy"""

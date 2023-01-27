@@ -60,4 +60,14 @@ docker = func_m.Func(
 )
 
 # Runners
-dev_pod = k8s_m.GitPod()
+dev_pod = k8s_m.GitPod(
+    services=[
+        k8s_m.Service(
+            name="db",
+            image="postgres:15.1",
+            env=[
+                k8s_m.Env(name="POSTGRES_PASSWORD", value="password")
+            ]
+        )
+    ]
+)

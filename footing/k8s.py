@@ -5,11 +5,25 @@ import pathlib
 import subprocess
 import tempfile
 import textwrap
+import typing
 
 import xxhash
 
 import footing.obj
 import footing.utils
+
+
+@dataclasses.dataclass
+class Env:
+    name: str
+    value: str
+
+
+@dataclasses.dataclass
+class Service:
+    image: str
+    name: str
+    env: typing.List[Env] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass
@@ -21,24 +35,27 @@ class Cluster(footing.obj.Obj):
 @dataclasses.dataclass
 class Pod(footing.obj.Obj):
     spec: str = None
+    services: typing.List[Service] = dataclasses.field(default_factory=list)
 
     def lazy_post_init(self):
         """Lazily compute post_init properties"""
-        self.spec = textwrap.dedent(
-            f"""
-            apiVersion: v1
-            kind: Pod
-            metadata:
-              name: {self.resource_name}
-            spec:
-              containers:
-              - name: runner
-                image: wesleykendall/footing:latest
-                imagePullPolicy: Always 
-                command: ["/bin/bash", "-c", "--"]
-                args: ["trap : TERM INT; sleep infinity & wait"]
-            """
-        )
+
+        spec = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {"name": self.resource_name},
+            "spec": {
+                "containers": [{
+                    "name": "runner",
+                    "image": "wesleykendall/footing:latest",
+                    "imagePullPolicy": "Always", 
+                    "command": ["/bin/bash", "-c", "--"],
+                    "args": ["trap : TERM INT; sleep infinity & wait"]
+                }] + [dataclasses.asdict(service) for service in self.services]
+            }
+        }
+        yaml = self.mod("yaml", package="pyyaml")
+        self.spec = yaml.dump(spec)
 
     ###
     # Core properties and extensions
@@ -57,12 +74,12 @@ class Pod(footing.obj.Obj):
         return (self.name or "pod").replace("_", "-")
 
     @property
-    def kubectl_ext(self):
-        return self._kubectl_ext
+    def kubectl_bin(self):
+        return self._kubectl_bin
 
     @functools.cached_property
-    def _kubectl_ext(self):
-        return self.ext("kubectl", package="kubernetes")
+    def _kubectl_bin(self):
+        return self.bin("kubectl", package="kubernetes")
 
     ###
     # Core methods and properties
@@ -85,7 +102,7 @@ class Pod(footing.obj.Obj):
                 cmd = self.kubectl_exec_cmd(exe, args)
 
                 footing.utils.run(
-                    f"{self.kubectl_ext} exec {self.resource_name} -- bash -c '{cmd}'",
+                    f"{self.kubectl_bin} exec {self.resource_name} -- bash -c '{cmd}'",
                     stderr=subprocess.PIPE,
                 )
         except subprocess.CalledProcessError as exc:
@@ -115,11 +132,11 @@ class Pod(footing.obj.Obj):
             with open(pod_yml_path, "w") as f:
                 f.write(self.spec)
 
-            footing.utils.run(f"{self.kubectl_ext} apply -f {pod_yml_path}")
+            footing.utils.run(f"{self.kubectl_bin} apply -f {pod_yml_path}")
 
         footing.cli.pprint("waiting for pod")
         footing.utils.run(
-            f"{self.kubectl_ext} wait --for=condition=ready --timeout '-1s' pod {self.resource_name}"
+            f"{self.kubectl_bin} wait --for=condition=ready --timeout '-1s' pod {self.resource_name}"
         )
 
         self.write_cache()
@@ -131,7 +148,7 @@ class Pod(footing.obj.Obj):
 
         try:
             footing.utils.run(
-                f"{self.kubectl_ext} delete pod {self.resource_name}", stderr=subprocess.PIPE
+                f"{self.kubectl_bin} delete pod {self.resource_name}", stderr=subprocess.PIPE
             )
         except subprocess.CalledProcessError as exc:
             stderr = exc.stderr.decode("utf-8").strip() if exc.stderr else ""
@@ -150,7 +167,7 @@ class GitPod(Pod):
         """Lazily compute post_init properties"""
         if not self.repo:
             out = footing.utils.run(
-                f"{self.git_ext} config --get remote.origin.url", stdout=subprocess.PIPE
+                f"{self.git_bin} config --get remote.origin.url", stdout=subprocess.PIPE
             )
             url = out.stdout.decode("utf-8")
 
@@ -164,7 +181,7 @@ class GitPod(Pod):
 
         if not self.branch:
             out = footing.utils.run(
-                f"{self.git_ext} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
+                f"{self.git_bin} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
             )
             self.branch = out.stdout.decode("utf-8").strip()
 
@@ -191,12 +208,12 @@ class GitPod(Pod):
         return f"{name[:max_name_len]}-{hash}"
 
     @property
-    def git_ext(self):
-        return self._git_ext
+    def git_bin(self):
+        return self._git_bin
 
     @functools.cached_property
-    def _git_ext(self):
-        return self.ext("git")
+    def _git_bin(self):
+        return self.bin("git")
 
     ###
     # Core methods and properties
