@@ -20,7 +20,7 @@ FROM $BASE_IMAGE
 
 RUN mkdir /project
 WORKDIR /project
-ENV PATH=/footing/toolkits/bin:$PATH, PYTHONUNBUFFERED=1
+ENV PATH=/footing/toolkits/bin:$PATH PYTHONUNBUFFERED=1
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /footing /footing

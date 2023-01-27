@@ -57,19 +57,7 @@ wheel = func_m.Func(
 
 docker = func_m.Func(
     cmd="bash -c 'docker buildx build -t wesleykendall/footing --no-cache --platform linux/amd64,linux/arm64/v8 . --push'",
-    toolkit=poetry,
 )
 
 # Runners
-dev_pod = k8s_m.Pod()
-
-###
-# Example commands
-#
-# footing build ci_cluster  # Start the CI cluster
-# footing build db_pod -c ci_cluster -r local_repo  # Start a db_pod on the CI cluster with the local repository mirrored
-# footing build db_pod -c ci_cluster -r origin_repo -b hello  # Start a db_pod on the CI cluster with the remote repo checked out on branch "hello"
-#
-# footing run fmt  # Run code formatting locally
-# footing run fmt -c ci_cluster -r local_repo  # Run code formatting remotely over repo (this example is nonsensical)
-# footing run tests  # Run tests locally
+dev_pod = k8s_m.GitPod()

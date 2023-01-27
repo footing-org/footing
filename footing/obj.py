@@ -148,6 +148,14 @@ class Obj:
     # Other core methods
     ###
 
+    def ext(self, ext, package=None):
+        """Return an extension. Install it if not installed"""
+        if not footing.utils.installed(ext):
+            footing.cli.pprint(f"install {package or ext}")
+            footing.utils.conda_cmd(f"install {package or ext} -y -c conda-forge -n base")
+
+        return footing.utils.bin_path(ext)
+
     def lazy_post_init(self):
         """__post_init__ but lazy"""
         pass

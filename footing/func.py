@@ -53,13 +53,16 @@ class Func(footing.obj.Obj):
     def run(self, *, toolkit=None, cwd=None):
         cmd = self.rendered
         toolkit = toolkit or self.toolkit
-        if isinstance(toolkit, pathlib.Path):
-            prefix = toolkit
-        elif hasattr(toolkit, "conda_env_path"):
-            toolkit.build()
-            prefix = toolkit.conda_env_path
+        if toolkit:
+            if isinstance(toolkit, pathlib.Path):
+                prefix = toolkit
+            elif hasattr(toolkit, "conda_env_path"):
+                toolkit.build()
+                prefix = toolkit.conda_env_path
+            else:
+                raise ValueError(f"Invalid toolkit - {toolkit}")
         else:
-            raise ValueError(f"Invalid toolkit - {toolkit}")
+            prefix = None
 
         footing.cli.pprint(cmd.removeprefix(footing.utils.conda_exe() + " "))
         return footing.utils.conda_run(cmd, prefix=prefix)
