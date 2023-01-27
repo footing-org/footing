@@ -16,6 +16,7 @@ import footing.utils
 
 def asdict(obj):
     """Dumps k8s dictionaries, which have camelcase keys"""
+
     def snake_to_camel(val):
         components = val.split("_")
         return components[0] + "".join(x.title() for x in components[1:])
@@ -53,8 +54,12 @@ class Runner(Service):
     image: str = "wesleykendall/footing:latest"
     name: str = "runner"
     image_pull_policy: str = "Always"
-    command: typing.List[str] = dataclasses.field(default_factory=lambda: ["/bin/bash", "-c", "--"])
-    args: typing.List[str] = dataclasses.field(default_factory=lambda: ["trap : TERM INT; sleep infinity & wait"])
+    command: typing.List[str] = dataclasses.field(
+        default_factory=lambda: ["/bin/bash", "-c", "--"]
+    )
+    args: typing.List[str] = dataclasses.field(
+        default_factory=lambda: ["trap : TERM INT; sleep infinity & wait"]
+    )
 
     @property
     def resource_name(self):
@@ -113,10 +118,11 @@ class GitRunner(Runner, footing.obj.Lazy):
     ###
 
     def kubectl_exec_cmd(self, exe, args):
-        clone_cmd = f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null"
+        clone_cmd = (
+            f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null"
+        )
         pull_cmd = f"git -C /project reset --hard > /dev/null && git -C /project pull > /dev/null"
         return f"(({clone_cmd}) || ({pull_cmd})) && {super().kubectl_exec_cmd(exe, args)}"
-
 
 
 @dataclasses.dataclass
@@ -126,7 +132,7 @@ class Cluster(footing.obj.Obj):
 
 
 @dataclasses.dataclass
-class Pod(footing.obj.Obj, footing.obj.Lazy):
+class Pod(footing.obj.Obj):
     runner: Runner = dataclasses.field(default_factory=Runner)
     spec: str = None
     services: typing.List[Service] = dataclasses.field(default_factory=list)
@@ -138,14 +144,17 @@ class Pod(footing.obj.Obj, footing.obj.Lazy):
             "kind": "Pod",
             "metadata": {"name": self.resource_name},
             "spec": {
-                "containers": [{
-                    "name": "runner",
-                    "image": "wesleykendall/footing:latest",
-                    "imagePullPolicy": "Always", 
-                    "command": ["/bin/bash", "-c", "--"],
-                    "args": ["trap : TERM INT; sleep infinity & wait"]
-                }] + [asdict(service) for service in self.services]
-            }
+                "containers": [
+                    {
+                        "name": "runner",
+                        "image": "wesleykendall/footing:latest",
+                        "imagePullPolicy": "Always",
+                        "command": ["/bin/bash", "-c", "--"],
+                        "args": ["trap : TERM INT; sleep infinity & wait"],
+                    }
+                ]
+                + [asdict(service) for service in self.services]
+            },
         }
         yaml = footing.ext.mod("yaml", package="pyyaml")
         self.spec = yaml.dump(spec)
@@ -319,6 +328,8 @@ class GitPod(Pod):
     ###
 
     def kubectl_exec_cmd(self, exe, args):
-        clone_cmd = f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null"
+        clone_cmd = (
+            f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null"
+        )
         pull_cmd = f"git -C /project reset --hard > /dev/null && git -C /project pull > /dev/null"
         return f"(({clone_cmd}) || ({pull_cmd})) && {super().kubectl_exec_cmd(exe, args)}"

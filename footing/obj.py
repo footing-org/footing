@@ -90,7 +90,7 @@ def _render_inner(obj):
 
 
 @dataclasses.dataclass
-class Obj:
+class Obj(Lazy):
     """A core footing object"""
 
     ###

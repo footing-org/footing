@@ -69,11 +69,9 @@ dev_pod = k8s_m.Pod(
             image="postgres:15.1",
             env=[
                 k8s_m.Env(name="POSTGRES_PASSWORD", value="postgres"),
-                k8s_m.Env(name="POSTGRES_USER", value="postgres")
+                k8s_m.Env(name="POSTGRES_USER", value="postgres"),
             ],
-            ports=[
-                k8s_m.Port(container_port=5432)
-            ]
+            ports=[k8s_m.Port(container_port=5432)],
         )
-    ]
+    ],
 )
