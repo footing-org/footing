@@ -21,7 +21,7 @@ class Conda(footing.func.Func):
     def rendered(self):
         packages = " ".join(self.packages)
         channels = " ".join(f"-c {c}" for c in self.channels)
-        return f"{footing.utils.conda_exe()} install -q -y {packages} {channels}"
+        return f"{footing.utils.conda_exe()} install -y {packages} {channels}"
 
 
 @dataclasses.dataclass
@@ -78,6 +78,10 @@ class Toolkit(footing.obj.Obj):
     def cache_key(self):
         return self.conda_env_name
 
+    @property
+    def cache_obj(self):
+        return CachedBuild(hash=self.ref.hash, path=str(self.conda_env_path))
+
     ###
     # Core methods
     ###
@@ -98,6 +102,8 @@ class Toolkit(footing.obj.Obj):
 
     def build(self):
         """Create a conda env with the tools installed"""
+        self.render()
+
         # TODO: Find a better way to shorten environment names and avoid global
         # collisions
         if len(str(self.conda_env_path)) > 114:
@@ -106,14 +112,13 @@ class Toolkit(footing.obj.Obj):
                 " Try shortening your toolkit name."
             )
 
-        old_cache_obj = self.cache_read(CachedBuild)
-        new_cache_obj = CachedBuild(path=str(self.conda_env_path), hash=self.ref.hash)
-        if old_cache_obj == new_cache_obj:
-            if pathlib.Path(old_cache_obj.path).exists():
+        if self.is_cached:
+            if pathlib.Path(self.cache_obj.path).exists():
+                # Cached
                 return
             else:
-                # The cached object is no longer valid. Remove it
-                self.cache_remove(old_cache_obj)
+                # The cached object is no longer valid. Remove it and continue
+                self.delete_cache()
 
         # Run pre-install hooks.
         for func in self.pre_install_hooks:
@@ -130,6 +135,6 @@ class Toolkit(footing.obj.Obj):
         for installer in self.installers:
             installer.run(toolkit=self.conda_env_path)
 
-        self.cache_write(new_cache_obj)
+        self.write_cache()
 
         # TODO: Warn when the hash has changed midway. This indicates an improper setup

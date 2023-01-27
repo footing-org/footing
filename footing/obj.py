@@ -50,6 +50,11 @@ class Entry:
 
 
 @dataclasses.dataclass
+class CachedBuild:
+    hash: str
+
+
+@dataclasses.dataclass
 class Obj:
     """A core footing object"""
 
@@ -111,25 +116,41 @@ class Obj:
     def cache_key(self):
         return self.ref.hash
 
-    def cache_read(self, obj_cls):
+    @property
+    def cache_obj(self):
+        return CachedBuild(hash=self.ref.hash)
+
+    def read_cache(self):
+        obj_cls = self.cache_obj.__class__
         try:
             with open(footing.utils.install_path() / "cache" / self.cache_key, "r") as file:
                 return obj_cls(**orjson.loads(file.read()))
         except Exception:
             return None
 
-    def cache_write(self, val):
+    def write_cache(self):
         cache_root = footing.utils.install_path() / "cache"
         cache_root.mkdir(exist_ok=True)
         with open(cache_root / self.cache_key, "wb") as file:
-            file.write(orjson.dumps(val))
+            file.write(orjson.dumps(self.cache_obj))
 
-    def cache_remove(self, val):
-        os.remove(footing.utils.install_path() / "cache" / self.cache_key)
+    def delete_cache(self):
+        (footing.utils.install_path() / "cache" / self.cache_key).unlink(missing_ok=True)
+        assert not (footing.utils.install_path() / "cache" / self.cache_key).exists()
+
+    @property
+    def is_cached(self):
+        new_cache_obj = self.cache_obj
+        old_cache_obj = self.read_cache()
+        return old_cache_obj == new_cache_obj
 
     ###
     # Other core methods
     ###
+
+    def lazy_post_init(self):
+        """__post_init__ but lazy"""
+        pass
 
     def render(self):
         """Compute dynamically rendered attributes"""
