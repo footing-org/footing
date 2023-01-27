@@ -102,7 +102,7 @@ class Pod(footing.obj.Obj):
                 cmd = self.kubectl_exec_cmd(exe, args)
 
                 footing.utils.run(
-                    f"{self.kubectl_bin} exec {self.resource_name} -- bash -c '{cmd}'",
+                    f"{self.kubectl_bin} exec -c runner -p {self.resource_name} -- bash -c '{cmd}'",
                     stderr=subprocess.PIPE,
                 )
         except subprocess.CalledProcessError as exc:
