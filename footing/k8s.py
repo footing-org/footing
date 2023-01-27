@@ -20,10 +20,16 @@ class Env:
 
 
 @dataclasses.dataclass
+class Port:
+    containerPort: int
+
+
+@dataclasses.dataclass
 class Service:
     image: str
     name: str
     env: typing.List[Env] = dataclasses.field(default_factory=list)
+    ports: typing.List[Port] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass

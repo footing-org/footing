@@ -67,7 +67,11 @@ dev_pod = k8s_m.GitPod(
             name="db",
             image="postgres:15.1",
             env=[
-                k8s_m.Env(name="POSTGRES_PASSWORD", value="password")
+                k8s_m.Env(name="POSTGRES_PASSWORD", value="postgres"),
+                k8s_m.Env(name="POSTGRES_USER", value="postgres")
+            ],
+            ports=[
+                k8s_m.Port(containerPort=5432)
             ]
         )
     ]

@@ -98,7 +98,7 @@ class Toolkit(footing.obj.Obj):
         if not exe_path.exists():
             raise ValueError(f'Executable "{exe}" does not exist in this toolkit.')
 
-        os.execv(str(exe_path), [exe] + args)
+        os.execv(str(exe_path), [str(exe_path)] + args)
 
     def build(self):
         """Create a conda env with the tools installed"""
