@@ -2,6 +2,7 @@ import dataclasses
 import functools
 import os
 import pathlib
+import re
 import subprocess
 import tempfile
 import textwrap
@@ -112,6 +113,46 @@ class GitRunner(Runner, footing.obj.Lazy):
     @functools.cached_property
     def _git_bin(self):
         return footing.ext.bin("git")
+
+    ###
+    # Core methods and properties
+    ###
+
+    def kubectl_exec_cmd(self, exe, args):
+        clone_cmd = (
+            f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null"
+        )
+        pull_cmd = f"git -C /project reset --hard > /dev/null && git -C /project pull > /dev/null"
+        return f"(({clone_cmd}) || ({pull_cmd})) && {super().kubectl_exec_cmd(exe, args)}"
+
+
+@dataclasses.dataclass
+class RSyncRunner(Runner, footing.obj.Lazy):
+    def render(self):
+        """Lazily compute properties
+
+        Put the hostname as a public property so that it's are part of the hash.
+        We leave them off the dataclass here since the K8s pod definition will
+        be invalid
+        """
+        out = footing.utils.run(f"hostname", stdout=subprocess.PIPE)
+        self.hostname = out.stdout.decode("utf-8").strip()
+
+    ###
+    # Core properties and extensions
+    ###
+
+    @property
+    def resource_name(self):
+        return re.sub("[^0-9a-zA-Z\-]+", "-", self.hostname)
+
+    @property
+    def rsync_bin(self):
+        return self._rsync_bin
+
+    @functools.cached_property
+    def _rsync_bin(self):
+        return footing.ext.bin("rsync")
 
     ###
     # Core methods and properties
