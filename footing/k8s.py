@@ -72,30 +72,30 @@ class Runner(Service):
 
 @dataclasses.dataclass
 class GitRunner(Runner, footing.obj.Lazy):
-    repo: str = None
-    branch: str = None
-
     def render(self):
-        """Lazily compute properties"""
-        if not self.repo:
-            out = footing.utils.run(
-                f"{self.git_bin} config --get remote.origin.url", stdout=subprocess.PIPE
-            )
-            url = out.stdout.decode("utf-8")
+        """Lazily compute properties
 
-            if url.startswith("git@github.com"):
-                repo = url.strip().split(":", 1)[1][:-4]
-                self.repo = f"https://github.com/{repo}"
-            elif url.startswith("https://github.com"):
-                self.repo = url
-            else:
-                raise ValueError(f'Invalid git remote repo URL - "{url}"')
+        Put repo and branch as public properties so that they are part of the hash.
+        We leave them off the dataclass here since the K8s pod definition will
+        be invalid
+        """
+        out = footing.utils.run(
+            f"{self.git_bin} config --get remote.origin.url", stdout=subprocess.PIPE
+        )
+        url = out.stdout.decode("utf-8")
 
-        if not self.branch:
-            out = footing.utils.run(
-                f"{self.git_bin} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
-            )
-            self.branch = out.stdout.decode("utf-8").strip()
+        if url.startswith("git@github.com"):
+            repo = url.strip().split(":", 1)[1][:-4]
+            self.repo = f"https://github.com/{repo}"
+        elif url.startswith("https://github.com"):
+            self.repo = url
+        else:
+            raise ValueError(f'Invalid git remote repo URL - "{url}"')
+
+        out = footing.utils.run(
+            f"{self.git_bin} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
+        )
+        self.branch = out.stdout.decode("utf-8").strip()
 
     ###
     # Core properties and extensions
@@ -144,15 +144,7 @@ class Pod(footing.obj.Obj):
             "kind": "Pod",
             "metadata": {"name": self.resource_name},
             "spec": {
-                "containers": [
-                    {
-                        "name": "runner",
-                        "image": "wesleykendall/footing:latest",
-                        "imagePullPolicy": "Always",
-                        "command": ["/bin/bash", "-c", "--"],
-                        "args": ["trap : TERM INT; sleep infinity & wait"],
-                    }
-                ]
+                "containers": [asdict(self.runner)]
                 + [asdict(service) for service in self.services]
             },
         }
@@ -216,7 +208,7 @@ class Pod(footing.obj.Obj):
                 cmd = self.kubectl_exec_cmd(exe, args)
 
                 footing.utils.run(
-                    f"{self.kubectl_bin} exec --stdin --tty -c runner {self.resource_name} -- bash -c '{cmd}'",
+                    f"{self.kubectl_bin} exec --stdin --tty -c {self.runner.name} {self.resource_name} -- bash -c '{cmd}'",
                     stderr=subprocess.PIPE,
                 )
         except subprocess.CalledProcessError as exc:
