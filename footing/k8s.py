@@ -66,7 +66,10 @@ class Runner(Service):
     def resource_name(self):
         return self.name
 
-    def kubectl_exec_cmd(self, exe, args, pod):
+    def local_exec_cmd(self, exe, args, pod):
+        return ""
+
+    def remote_exec_cmd(self, exe, args, pod):
         # TODO: properly escape args
         return f"footing {exe} {' '.join(args)}"
 
@@ -120,12 +123,12 @@ class GitRunner(Runner, footing.obj.Lazy):
     # Core methods and properties
     ###
 
-    def kubectl_exec_cmd(self, exe, args, pod):
+    def remote_exec_cmd(self, exe, args, pod):
         clone_cmd = (
             f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null"
         )
         pull_cmd = f"git -C /project reset --hard > /dev/null && git -C /project pull > /dev/null"
-        return f"(({clone_cmd}) || ({pull_cmd})) && {super().kubectl_exec_cmd(exe, args, pod)}"
+        return f"(({clone_cmd}) || ({pull_cmd})) && {super().remote_exec_cmd(exe, args, pod)}"
 
 
 @dataclasses.dataclass
@@ -168,16 +171,14 @@ class RSyncRunner(Runner, footing.obj.Lazy):
     # Core methods and properties
     ###
 
-    def kubectl_exec_cmd(self, exe, args, pod):
+    def local_exec_cmd(self, exe, args, pod):
         rsync_bin = self.rsync_bin
         kubectl_bin = self.kubectl_bin
 
-        rsync_cmd = (
-            f"{rsync_bin} -aurP --blocking-io --rsync-path= "
-            f'--rsh="{kubectl_bin} exec -c {self.name} {pod.resource_name} -i -- " . rsync:/project'
-        )
+        rsync_flags = '-aur --blocking-io --include="**.gitignore" --exclude="/.git" --filter=":- .gitignore" --delete-after --rsync-path='
+        rsh = f'--rsh="{kubectl_bin} exec -c {self.name} {pod.resource_name} -i -- "'
 
-        return f"({rsync_cmd}) && {super().kubectl_exec_cmd(exe, args, pod)}"
+        return f"{rsync_bin} {rsync_flags} {rsh} . rsync:/project"
 
 
 @dataclasses.dataclass
@@ -245,10 +246,6 @@ class Pod(footing.obj.Obj):
     # Core methods and properties
     ###
 
-    def kubectl_exec_cmd(self, exe, args):
-        # TODO: properly escape args
-        return self.runner.kubectl_exec_cmd(exe, args, self)
-
     def exec(self, exe, args, retry=True):
         """Exec a function in this pod"""
         self.build()
@@ -260,10 +257,12 @@ class Pod(footing.obj.Obj):
             else:
                 # git is in the PATH of the container, so no need to provide an absolute path
                 footing.cli.pprint("provisioning")
-                cmd = self.kubectl_exec_cmd(exe, args)
+                local_cmd = self.runner.local_exec_cmd(exe, args, self)
+                remote_cmd = self.runner.remote_exec_cmd(exe, args, self)
 
                 footing.utils.run(
-                    f"{self.kubectl_bin} exec --stdin --tty -c {self.runner.name} {self.resource_name} -- bash -c '{cmd}'",
+                    f"bash -c '{local_cmd}' && "
+                    f"{self.kubectl_bin} exec --stdin --tty -c {self.runner.name} {self.resource_name} -- bash -c '{remote_cmd}'",
                     stderr=subprocess.PIPE,
                 )
         except subprocess.CalledProcessError as exc:

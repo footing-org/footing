@@ -23,7 +23,9 @@ toolkit_m, func_m, obj_m, k8s_m = footing.config.module("toolkit", "func", "obj"
 # env = footing.core.Var(name="env", label="Environment", description="Hello", type=str)
 
 # Toolkits
-poetry = toolkit_m.Toolkit([toolkit_m.Conda(packages=["poetry==1.3.0", "python==3.11"])])
+poetry = toolkit_m.Toolkit(
+    [toolkit_m.Conda(packages=["poetry==1.3.0", "python==3.11", "bash==5.1.16"])]
+)
 postgres = toolkit_m.Toolkit([toolkit_m.Conda(packages=["postgresql==15.1"])])
 black = toolkit_m.Toolkit([toolkit_m.Conda(packages=["black==22.12.0", "python==3.11"])])
 toolkit = toolkit_m.Toolkit(
