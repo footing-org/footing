@@ -50,21 +50,23 @@ class Service:
     args: typing.List[str] = None
 
 
+def default_runner_service():
+    return Service(
+        image="wesleykendall/footing:latest",
+        name="runner",
+        image_pull_policy="Always",
+        command=["/bin/bash", "-c", "--"],
+        args=["trap : TERM INT; sleep infinity & wait"],
+    )
+
+
 @dataclasses.dataclass
-class Runner(Service):
-    image: str = "wesleykendall/footing:latest"
-    name: str = "runner"
-    image_pull_policy: str = "Always"
-    command: typing.List[str] = dataclasses.field(
-        default_factory=lambda: ["/bin/bash", "-c", "--"]
-    )
-    args: typing.List[str] = dataclasses.field(
-        default_factory=lambda: ["trap : TERM INT; sleep infinity & wait"]
-    )
+class Runner:
+    service: Service = dataclasses.field(default_factory=default_runner_service)
 
     @property
     def resource_name(self):
-        return self.name
+        return self.service.name
 
     def local_exec_cmd(self, exe, args, pod):
         return ""
@@ -76,6 +78,9 @@ class Runner(Service):
 
 @dataclasses.dataclass
 class GitRunner(Runner, footing.obj.Lazy):
+    repo: str = None
+    branch: str = None
+
     def render(self):
         """Lazily compute properties
 
@@ -83,25 +88,25 @@ class GitRunner(Runner, footing.obj.Lazy):
         We leave them off the dataclass here since the K8s pod definition will
         be invalid
         """
-        # TODO: Re-model runners and don't inherit Service. Instead compose the service
+        if not self.repo:
+            out = footing.utils.run(
+                f"{self.git_bin} config --get remote.origin.url", stdout=subprocess.PIPE
+            )
+            url = out.stdout.decode("utf-8")
 
-        out = footing.utils.run(
-            f"{self.git_bin} config --get remote.origin.url", stdout=subprocess.PIPE
-        )
-        url = out.stdout.decode("utf-8")
+            if url.startswith("git@github.com"):
+                repo = url.strip().split(":", 1)[1][:-4]
+                self.repo = f"https://github.com/{repo}"
+            elif url.startswith("https://github.com"):
+                self.repo = url
+            else:
+                raise ValueError(f'Invalid git remote repo URL - "{url}"')
 
-        if url.startswith("git@github.com"):
-            repo = url.strip().split(":", 1)[1][:-4]
-            self.repo = f"https://github.com/{repo}"
-        elif url.startswith("https://github.com"):
-            self.repo = url
-        else:
-            raise ValueError(f'Invalid git remote repo URL - "{url}"')
-
-        out = footing.utils.run(
-            f"{self.git_bin} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
-        )
-        self.branch = out.stdout.decode("utf-8").strip()
+        if not self.branch:
+            out = footing.utils.run(
+                f"{self.git_bin} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
+            )
+            self.branch = out.stdout.decode("utf-8").strip()
 
     ###
     # Core properties and extensions
@@ -133,6 +138,8 @@ class GitRunner(Runner, footing.obj.Lazy):
 
 @dataclasses.dataclass
 class RSyncRunner(Runner, footing.obj.Lazy):
+    hostname: str = None
+
     def render(self):
         """Lazily compute properties
 
@@ -140,8 +147,9 @@ class RSyncRunner(Runner, footing.obj.Lazy):
         We leave them off the dataclass here since the K8s pod definition will
         be invalid
         """
-        out = footing.utils.run(f"hostname", stdout=subprocess.PIPE)
-        self.hostname = out.stdout.decode("utf-8").strip()
+        if not self.hostname:
+            out = footing.utils.run(f"hostname", stdout=subprocess.PIPE)
+            self.hostname = out.stdout.decode("utf-8").strip()
 
     ###
     # Core properties and extensions
@@ -176,7 +184,7 @@ class RSyncRunner(Runner, footing.obj.Lazy):
         kubectl_bin = self.kubectl_bin
 
         rsync_flags = '-aur --blocking-io --include="**.gitignore" --exclude="/.git" --filter=":- .gitignore" --delete-after --rsync-path='
-        rsh = f'--rsh="{kubectl_bin} exec -c {self.name} {pod.resource_name} -i -- "'
+        rsh = f'--rsh="{kubectl_bin} exec -c {self.service.name} {pod.resource_name} -i -- "'
 
         return f"{rsync_bin} {rsync_flags} {rsh} . rsync:/project"
 
@@ -200,7 +208,7 @@ class Pod(footing.obj.Obj):
             "kind": "Pod",
             "metadata": {"name": self.resource_name},
             "spec": {
-                "containers": [asdict(self.runner)]
+                "containers": [asdict(self.runner.service)]
                 + [asdict(service) for service in self.services]
             },
         }
@@ -262,7 +270,7 @@ class Pod(footing.obj.Obj):
 
                 footing.utils.run(
                     f"bash -c '{local_cmd}' && "
-                    f"{self.kubectl_bin} exec --stdin --tty -c {self.runner.name} {self.resource_name} -- bash -c '{remote_cmd}'",
+                    f"{self.kubectl_bin} exec --stdin --tty -c {self.runner.service.name} {self.resource_name} -- bash -c '{remote_cmd}'",
                     stderr=subprocess.PIPE,
                 )
         except subprocess.CalledProcessError as exc:
