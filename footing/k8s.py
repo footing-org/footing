@@ -66,7 +66,7 @@ class Runner(Service):
     def resource_name(self):
         return self.name
 
-    def kubectl_exec_cmd(self, exe, args):
+    def kubectl_exec_cmd(self, exe, args, pod):
         # TODO: properly escape args
         return f"footing {exe} {' '.join(args)}"
 
@@ -80,6 +80,8 @@ class GitRunner(Runner, footing.obj.Lazy):
         We leave them off the dataclass here since the K8s pod definition will
         be invalid
         """
+        # TODO: Re-model runners and don't inherit Service. Instead compose the service
+
         out = footing.utils.run(
             f"{self.git_bin} config --get remote.origin.url", stdout=subprocess.PIPE
         )
@@ -118,12 +120,12 @@ class GitRunner(Runner, footing.obj.Lazy):
     # Core methods and properties
     ###
 
-    def kubectl_exec_cmd(self, exe, args):
+    def kubectl_exec_cmd(self, exe, args, pod):
         clone_cmd = (
             f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null"
         )
         pull_cmd = f"git -C /project reset --hard > /dev/null && git -C /project pull > /dev/null"
-        return f"(({clone_cmd}) || ({pull_cmd})) && {super().kubectl_exec_cmd(exe, args)}"
+        return f"(({clone_cmd}) || ({pull_cmd})) && {super().kubectl_exec_cmd(exe, args, pod)}"
 
 
 @dataclasses.dataclass
@@ -154,16 +156,28 @@ class RSyncRunner(Runner, footing.obj.Lazy):
     def _rsync_bin(self):
         return footing.ext.bin("rsync")
 
+    @property
+    def kubectl_bin(self):
+        return self._kubectl_bin
+
+    @functools.cached_property
+    def _kubectl_bin(self):
+        return footing.ext.bin("kubectl", package="kubernetes")
+
     ###
     # Core methods and properties
     ###
 
-    def kubectl_exec_cmd(self, exe, args):
-        clone_cmd = (
-            f"git clone {self.repo} --branch {self.branch} --single-branch /project 2> /dev/null"
+    def kubectl_exec_cmd(self, exe, args, pod):
+        rsync_bin = self.rsync_bin
+        kubectl_bin = self.kubectl_bin
+
+        rsync_cmd = (
+            f"{rsync_bin} -aurP --blocking-io --rsync-path= "
+            f'--rsh="{kubectl_bin} exec -c {self.name} {pod.resource_name} -i -- " . rsync:/project'
         )
-        pull_cmd = f"git -C /project reset --hard > /dev/null && git -C /project pull > /dev/null"
-        return f"(({clone_cmd}) || ({pull_cmd})) && {super().kubectl_exec_cmd(exe, args)}"
+
+        return f"({rsync_cmd}) && {super().kubectl_exec_cmd(exe, args, pod)}"
 
 
 @dataclasses.dataclass
@@ -217,7 +231,7 @@ class Pod(footing.obj.Obj):
         # a shared cluster is used
         hash = xxhash.xxh32_hexdigest(f"{name}-{self.runner}")
         max_name_len = 253 - (len(hash) + 1)
-        return f"{name[:max_name_len]}-{hash}"
+        return f"{name[:max_name_len]}-{hash}".lower()
 
     @property
     def kubectl_bin(self):
@@ -233,7 +247,7 @@ class Pod(footing.obj.Obj):
 
     def kubectl_exec_cmd(self, exe, args):
         # TODO: properly escape args
-        return self.runner.kubectl_exec_cmd(exe, args)
+        return self.runner.kubectl_exec_cmd(exe, args, self)
 
     def exec(self, exe, args, retry=True):
         """Exec a function in this pod"""

@@ -62,7 +62,7 @@ docker = func_m.Func(
 
 # Runners
 dev_pod = k8s_m.Pod(
-    runner=k8s_m.GitRunner(),
+    runner=k8s_m.RSyncRunner(),
     services=[
         k8s_m.Service(
             name="db",
