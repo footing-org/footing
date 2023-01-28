@@ -63,6 +63,10 @@ def default_runner_service():
 @dataclasses.dataclass
 class Runner:
     service: Service = dataclasses.field(default_factory=default_runner_service)
+    env: typing.List[Env] = dataclasses.field(default_factory=list)
+
+    def __post_init__(self):
+        self.service.env = self.service.env + self.env
 
     @property
     def resource_name(self):

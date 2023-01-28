@@ -125,7 +125,7 @@ class Toolkit(footing.obj.Obj):
         if self.pre_install_hooks:
             # The ref might have changed as a result of running pre-install hooks.
             # Clear the cached ref just in case
-            del self.ref
+            del self._ref
 
         # Create the env and run installers
         footing.utils.conda_cmd(f"create -q -y -p {self.conda_env_path}")
