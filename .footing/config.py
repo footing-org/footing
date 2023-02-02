@@ -58,12 +58,16 @@ wheel = func_m.Func(
     toolkit=poetry,
 )
 
-docker = func_m.Func(
-    cmd="bash -c 'docker buildx build -t footingorg/footing --no-cache --platform linux/amd64,linux/arm64/v8 . --push'",
+docker_footing = func_m.Func(
+    cmd="bash -c 'docker buildx build -f docker/footing/Dockerfile -t footingorg/footing --platform linux/amd64,linux/arm64/v8 . --push'",
+)
+
+docker_runner = func_m.Func(
+    cmd="bash -c 'docker buildx build -f docker/runner/Dockerfile -t footingorg/runner --platform linux/amd64,linux/arm64/v8 . --push'",
 )
 
 docker_postgres = func_m.Func(
-    cmd="bash -c 'docker buildx build -f Dockerfile.postgres -t footingorg/postgres:15.1 --no-cache --platform linux/amd64,linux/arm64/v8 . --push'",
+    cmd="bash -c 'docker buildx build -f Dockerfile.postgres -t footingorg/postgres:15.1 --platform linux/amd64,linux/arm64/v8 . --push'",
 )
 
 # Runners

@@ -11,8 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt /var/lib/dpkg /var/lib/cache /var/lib/log
 RUN mkdir /footing
 ENV FOOTING_SELF_INIT_NO_SHELL_INTEGRATION=1 FOOTING_SELF_INIT_NO_SYSTEM=1 FOOTING_BRANCH=mvp PREFIX=/footing
-RUN curl https://raw.githubusercontent.com/footing-org/footing/mvp/install.sh | /bin/bash
-RUN /footing/toolkits/bin/micromamba -r /footing/toolkits/ install git rsync -n base -c conda-forge -y
+
+ADD install.sh .
+RUN /bin/bash install.sh
+
+ADD *.whl .
+RUN /footing/toolkits/bin/pip3 install --upgrade --force-reinstall *.whl
+RUN /footing/toolkits/bin/footing self init
+# RUN curl https://raw.githubusercontent.com/footing-org/footing/mvp/install.sh | /bin/bash
+# RUN /footing/toolkits/bin/micromamba -r /footing/toolkits/ install git rsync -n base -c conda-forge -y
 RUN rm -rf /footing/toolkits/pkgs
 
 # Final image
