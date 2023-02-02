@@ -99,18 +99,20 @@ def conda_run(cmd, *, quiet=False, name=None, prefix=None, cwd=None):
         # quiet = f" -q" if quiet else ""
         # return run(f"{conda_exe_str} run{name}{prefix}{quiet} {cmd}", cwd=cwd)
 
-        if not prefix:
-            assert name
+        if not prefix and name:
             prefix = conda_root_path() / "envs" / name
 
-        prefix = pathlib.Path(prefix)
-        env = {
-            # TODO: Determine if we should use different isolation levels. Currently we default
-            # to the most isolated level
-            "PATH": f"{prefix / 'bin'}:/bin:/usr/bin",
-            "CONDA_PREFIX": str(prefix),
-            "CONDA_DEFAULT_ENV": str(prefix.name),
-        }
+        if prefix:
+            prefix = pathlib.Path(prefix)
+            env = {
+                # TODO: Determine if we should use different isolation levels. Currently we default
+                # to the most isolated level
+                "PATH": f"{prefix / 'bin'}:/bin:/usr/bin",
+                "CONDA_PREFIX": str(prefix),
+                "CONDA_DEFAULT_ENV": str(prefix.name),
+            }
+        else:
+            env = None
         return run(cmd, cwd=cwd, env=env)
     else:
         name = f" -n {name}" if name else ""

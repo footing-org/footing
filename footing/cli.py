@@ -207,6 +207,8 @@ def main():
         else:
             msg = str(exc)
 
+        msg = msg or "An unexpected error occurred"
+
         pprint(msg, color="red")
         if debug:
             print(traceback.format_exc().strip())
