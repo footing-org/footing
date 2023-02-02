@@ -18,8 +18,7 @@ RUN /bin/bash install.sh
 ADD *.whl .
 RUN /footing/toolkits/bin/pip3 install --upgrade --force-reinstall *.whl
 RUN /footing/toolkits/bin/footing self init
-# RUN curl https://raw.githubusercontent.com/footing-org/footing/mvp/install.sh | /bin/bash
-# RUN /footing/toolkits/bin/micromamba -r /footing/toolkits/ install git rsync -n base -c conda-forge -y
+
 RUN rm -rf /footing/toolkits/pkgs
 
 # Final image

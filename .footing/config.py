@@ -24,9 +24,8 @@ toolkit_m, func_m, obj_m, k8s_m = footing.config.module("toolkit", "func", "obj"
 
 # Toolkits
 poetry = toolkit_m.Toolkit(
-    [toolkit_m.Conda(packages=["poetry==1.3.0", "python==3.11", "bash==5.1.16"])]
+    [toolkit_m.Conda(packages=["poetry==1.3.0", "python==3.11"])]
 )
-postgres = toolkit_m.Toolkit([toolkit_m.Conda(packages=["postgresql==15.1"])])
 black = toolkit_m.Toolkit([toolkit_m.Conda(packages=["black==22.12.0", "python==3.11"])])
 toolkit = toolkit_m.Toolkit(
     pre_install_hooks=[
@@ -48,31 +47,30 @@ toolkit = toolkit_m.Toolkit(
 # Tasks
 fmt = func_m.Func(cmd="black .", toolkit=black)
 
-tests = func_m.Func(
-    cmd="pytest",
-    toolkit=toolkit,
-)
-
 wheel = func_m.Func(
     cmd="bash -c 'sh build.sh && git add -u && git commit -m \"new release\" && git push origin mvp'",
     toolkit=poetry,
 )
 
 docker_footing = func_m.Func(
-    cmd="bash -c 'docker buildx build -f docker/footing/Dockerfile -t footingorg/footing --platform linux/amd64,linux/arm64/v8 . --push'",
+    cmd="docker buildx build -f docker/footing/Dockerfile -t footingorg/footing --platform linux/amd64,linux/arm64/v8 . --push",
 )
 
 docker_runner = func_m.Func(
-    cmd="bash -c 'docker buildx build -f docker/runner/Dockerfile -t footingorg/runner --platform linux/amd64,linux/arm64/v8 . --push'",
+    cmd="docker buildx build -f docker/runner/Dockerfile -t footingorg/runner --platform linux/amd64,linux/arm64/v8 . --push",
 )
 
 docker_postgres = func_m.Func(
-    cmd="bash -c 'docker buildx build -f Dockerfile.postgres -t footingorg/postgres:15.1 --platform linux/amd64,linux/arm64/v8 . --push'",
+    cmd="docker buildx build -f dockder/postgres/Dockerfile -t footingorg/postgres:15.1 --platform linux/amd64,linux/arm64/v8 . --push",
+)
+
+docker_actions = func_m.Func(
+    cmd="docker buildx build -f docker/actions/Dockerfile -t footingorg/actions --platform linux/amd64,linux/arm64/v8 . --push",
 )
 
 # Runners
 dev_pod = k8s_m.Pod(
-    runner=k8s_m.GitRunner(),
+    runner=k8s_m.RSyncRunner(),
     services=[
         k8s_m.Service(
             name="db",
@@ -84,4 +82,8 @@ dev_pod = k8s_m.Pod(
             ports=[k8s_m.Port(container_port=5432)],
         )
     ],
+)
+
+ci_pod = k8s_m.Pod(
+    runner=k8s_m.GitRunner(),
 )
