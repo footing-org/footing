@@ -87,19 +87,36 @@ def conda_cmd(cmd, *, quiet=False):
 
 
 def conda_run(cmd, *, quiet=False, name=None, prefix=None, cwd=None):
-    """Use 'conda run' within an env"""
+    """Run within an env"""
     conda_exe_str = conda_exe()
 
-    name = f" -n {name}" if name else ""
-    prefix = f" -p {prefix}" if prefix else ""
-    quiet = f" -q" if quiet else ""
-
     if not cmd.startswith(conda_exe_str):
-        cmd = f"{conda_exe_str} run{name}{prefix}{quiet} {cmd}"
-    else:
-        cmd = f"{cmd}{name}{prefix}{quiet}"
+        # The old way of using micromamba run...
+        # This method suffers from performance issues, and it's not clear
+        # what exactly it offers other than changing PATH
+        # name = f" -n {name}" if name else ""
+        # prefix = f" -p {prefix}" if prefix else ""
+        # quiet = f" -q" if quiet else ""
+        # return run(f"{conda_exe_str} run{name}{prefix}{quiet} {cmd}", cwd=cwd)
 
-    return run(cmd, cwd=cwd)
+        if not prefix:
+            assert name
+            prefix = conda_root_path() / "envs" / name
+
+        prefix = pathlib.Path(prefix)
+        env = {
+            # TODO: Determine if we should use different isolation levels. Currently we default
+            # to the most isolated level
+            "PATH": f"{prefix / 'bin'}",
+            "CONDA_PREFIX": str(prefix),
+            "CONDA_DEFAULT_ENV": str(prefix.name),
+        }
+        return run(cmd, cwd=cwd, env=env)
+    else:
+        name = f" -n {name}" if name else ""
+        prefix = f" -p {prefix}" if prefix else ""
+        quiet = f" -q" if quiet else ""
+        return run(f"{cmd}{name}{prefix}{quiet}", cwd=cwd)
 
 
 def detect_shell():

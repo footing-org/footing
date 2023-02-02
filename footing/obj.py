@@ -90,7 +90,7 @@ def _render_inner(obj):
 
 
 @dataclasses.dataclass
-class Obj(Lazy):
+class Obj(Lazy, footing.config.Configurable):
     """A core footing object"""
 
     ###
@@ -119,11 +119,6 @@ class Obj(Lazy):
     @property
     def entry(self):
         return {}
-
-    @property
-    def name(self):
-        """The configured name of this object"""
-        return getattr(self, "_name", None)
 
     ###
     # Properties and methods for footing's cache

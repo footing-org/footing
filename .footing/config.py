@@ -62,6 +62,10 @@ docker = func_m.Func(
     cmd="bash -c 'docker buildx build -t wesleykendall/footing --no-cache --platform linux/amd64,linux/arm64/v8 . --push'",
 )
 
+docker_postgres = func_m.Func(
+    cmd="bash -c 'docker buildx build -f Dockerfile.postgres -t wesleykendall/postgres:15.1 --no-cache --platform linux/amd64,linux/arm64/v8 . --push'",
+)
+
 # Runners
 dev_pod = k8s_m.Pod(
     runner=k8s_m.GitRunner(),

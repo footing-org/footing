@@ -195,6 +195,14 @@ class RSyncRunner(Runner, footing.obj.Lazy):
 
 @dataclasses.dataclass
 class Cluster(footing.obj.Obj):
+    context: str
+
+    @property
+    def entry(self):
+        return super().entry | {
+            "/": footing.obj.Entry(method=self.exec),
+        }
+
     def build(self):
         pass
 

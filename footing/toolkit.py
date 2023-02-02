@@ -2,7 +2,7 @@ import dataclasses
 import functools
 import os
 import pathlib
-import stat
+import shutil
 import typing
 
 import xxhash
@@ -67,6 +67,7 @@ class Toolkit(footing.obj.Obj):
     def entry(self):
         return super().entry | {
             "build": footing.obj.Entry(method=self.build),
+            "delete": footing.obj.Entry(method=self.delete),
             "/": footing.obj.Entry(method=self.exec),
         }
 
@@ -136,3 +137,10 @@ class Toolkit(footing.obj.Obj):
         self.write_cache()
 
         # TODO: Warn when the hash has changed midway. This indicates an improper setup
+
+    def delete(self):
+        if self.is_cached:
+            if pathlib.Path(self.cache_obj.path).exists():
+                shutil.rmtree(self.cache_obj.path)
+
+            self.delete_cache()

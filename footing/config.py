@@ -8,6 +8,13 @@ import sys
 _registry = None
 
 
+class Configurable:
+    @property
+    def name(self):
+        """The configured name of this object"""
+        return getattr(self, "_name", None)
+
+
 def module(*names):
     return [importlib.import_module(f"footing.{name}") for name in names]
 
@@ -29,7 +36,7 @@ def load():
     spec.loader.exec_module(module)
 
     for name, obj in vars(module).items():
-        if not name.startswith("_") and hasattr(obj, "ref"):
+        if not name.startswith("_") and isinstance(obj, Configurable):
             register(**{name: obj})
 
 
