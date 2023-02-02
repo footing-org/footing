@@ -52,7 +52,7 @@ class Service:
 
 def default_runner_service():
     return Service(
-        image="wesleykendall/footing:latest",
+        image="footingorg/footing:latest",
         name="runner",
         image_pull_policy="Always",
         command=["/bin/bash", "-c", "--"],

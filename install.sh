@@ -70,7 +70,7 @@ $micromamba_prefix/bin/micromamba -r $micromamba_prefix -y --no-rc --no-env inst
 footing_ver="${FOOTING_VERSION:-1.0.0}"
 footing_branch="${FOOTING_BRANCH:-main}"
 footing_wheel="footing-$footing_ver-py3-none-any.whl"
-footing_package_url="https://raw.githubusercontent.com/wesleykendall/footing/$footing_branch/$footing_wheel"
+footing_package_url="https://raw.githubusercontent.com/footing-org/footing/$footing_branch/$footing_wheel"
 footing_package_dir=$(mktemp -d)
 footing_package_file="$footing_package_dir/$footing_wheel"
 

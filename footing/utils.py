@@ -107,7 +107,7 @@ def conda_run(cmd, *, quiet=False, name=None, prefix=None, cwd=None):
         env = {
             # TODO: Determine if we should use different isolation levels. Currently we default
             # to the most isolated level
-            "PATH": f"{prefix / 'bin'}",
+            "PATH": f"{prefix / 'bin'}:/bin:/usr/bin",
             "CONDA_PREFIX": str(prefix),
             "CONDA_DEFAULT_ENV": str(prefix.name),
         }
