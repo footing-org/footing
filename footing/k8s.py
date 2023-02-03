@@ -5,7 +5,6 @@ import pathlib
 import re
 import subprocess
 import tempfile
-import textwrap
 import typing
 
 import xxhash
@@ -13,6 +12,26 @@ import xxhash
 import footing.ext
 import footing.obj
 import footing.utils
+
+
+@functools.cache
+def rsync_bin():
+    return footing.ext.bin("rsync")
+
+
+@functools.cache
+def kubectl_bin():
+    return footing.ext.bin("kubectl", package="kubernetes-client")
+
+
+@functools.cache
+def git_bin():
+    return footing.ext.bin("git")
+
+
+@functools.cache
+def yaml_mod():
+    return footing.ext.mod("yaml", package="pyyaml")
 
 
 def asdict(obj):
@@ -23,15 +42,31 @@ def asdict(obj):
         return components[0] + "".join(x.title() for x in components[1:])
 
     def dict_factory(vals):
-        return {snake_to_camel(key): val for key, val in vals}
+        return {snake_to_camel(key): val for key, val in vals if val is not None}
 
     return dataclasses.asdict(obj, dict_factory=dict_factory)
 
 
 @dataclasses.dataclass
+class SecretKeyRef:
+    name: str
+    key: str
+    optional: bool = False
+
+
+@dataclasses.dataclass
+class ValueFrom:
+    secret_key_ref: SecretKeyRef
+
+
+@dataclasses.dataclass
 class Env:
     name: str
-    value: str
+    value: str = None
+    value_from: ValueFrom = None
+
+    def __post_init__(self):
+        assert self.value or self.value_from
 
 
 @dataclasses.dataclass
@@ -69,7 +104,7 @@ class Runner:
         self.service.env = self.service.env + self.env
 
     @property
-    def resource_name(self):
+    def label(self):
         return self.service.name
 
     def local_exec_cmd(self, exe, args, pod):
@@ -87,7 +122,11 @@ class GitRunner(Runner, footing.obj.Lazy):
 
     @property
     def is_github_action(self):
-        return "GITHUB_REPOSITORY" in os.environ and "ACCESS_TOKEN" in os.environ and "GITHUB_REF_NAME" in os.environ
+        return (
+            "GITHUB_REPOSITORY" in os.environ
+            and "ACCESS_TOKEN" in os.environ
+            and "GITHUB_REF_NAME" in os.environ
+        )
 
     def render(self):
         """Lazily compute properties
@@ -101,7 +140,7 @@ class GitRunner(Runner, footing.obj.Lazy):
                 self.repo = f"https://{os.environ['ACCESS_TOKEN']}@github.com/{os.environ['GITHUB_REPOSITORY']}"
             else:
                 out = footing.utils.run(
-                    f"{self.git_bin} config --get remote.origin.url", stdout=subprocess.PIPE
+                    f"{git_bin()} config --get remote.origin.url", stdout=subprocess.PIPE
                 )
                 url = out.stdout.decode("utf-8")
 
@@ -118,7 +157,7 @@ class GitRunner(Runner, footing.obj.Lazy):
                 self.branch = os.environ["GITHUB_REF_NAME"]
             else:
                 out = footing.utils.run(
-                    f"{self.git_bin} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
+                    f"{git_bin()} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
                 )
                 self.branch = out.stdout.decode("utf-8").strip()
 
@@ -127,17 +166,8 @@ class GitRunner(Runner, footing.obj.Lazy):
     ###
 
     @property
-    def resource_name(self):
-        name = f"{self.repo.split('/')[-1]}-{self.branch}"
-        return re.sub("[^0-9a-zA-Z_]+", "-", name)
-
-    @property
-    def git_bin(self):
-        return self._git_bin
-
-    @functools.cached_property
-    def _git_bin(self):
-        return footing.ext.bin("git")
+    def label(self):
+        return f"{self.repo.split('/')[-1]}-{self.branch}"
 
     ###
     # Core methods and properties
@@ -156,12 +186,7 @@ class RSyncRunner(Runner, footing.obj.Lazy):
     hostname: str = None
 
     def render(self):
-        """Lazily compute properties
-
-        Put the hostname as a public property so that it's are part of the hash.
-        We leave them off the dataclass here since the K8s pod definition will
-        be invalid
-        """
+        """Lazily compute properties"""
         if not self.hostname:
             out = footing.utils.run(f"hostname", stdout=subprocess.PIPE)
             self.hostname = out.stdout.decode("utf-8").strip()
@@ -171,37 +196,18 @@ class RSyncRunner(Runner, footing.obj.Lazy):
     ###
 
     @property
-    def resource_name(self):
-        return re.sub("[^0-9a-zA-Z\-]+", "-", self.hostname)
-
-    @property
-    def rsync_bin(self):
-        return self._rsync_bin
-
-    @functools.cached_property
-    def _rsync_bin(self):
-        return footing.ext.bin("rsync")
-
-    @property
-    def kubectl_bin(self):
-        return self._kubectl_bin
-
-    @functools.cached_property
-    def _kubectl_bin(self):
-        return footing.ext.bin("kubectl", package="kubernetes-client")
+    def label(self):
+        return self.hostname
 
     ###
     # Core methods and properties
     ###
 
     def local_exec_cmd(self, exe, args, pod):
-        rsync_bin = self.rsync_bin
-        kubectl_bin = self.kubectl_bin
-
         rsync_flags = '-aur --blocking-io --include="**.gitignore" --exclude="/.git" --filter=":- .gitignore" --delete-after --rsync-path='
-        rsh = f'--rsh="{kubectl_bin} exec -c {self.service.name} {pod.resource_name} -i -- "'
+        rsh = f'--rsh="{kubectl_bin()} exec -c {self.service.name} {pod.resource_name} -i -- "'
 
-        return f"{rsync_bin} {rsync_flags} {rsh} . rsync:/project"
+        return f"{rsync_bin()} {rsync_flags} {rsh} . rsync:/project"
 
 
 @dataclasses.dataclass
@@ -220,9 +226,8 @@ class Cluster(footing.obj.Obj):
 
 @dataclasses.dataclass
 class Pod(footing.obj.Obj):
-    runner: Runner = dataclasses.field(default_factory=Runner)
-    spec: str = None
     services: typing.List[Service] = dataclasses.field(default_factory=list)
+    spec: str = None
 
     def render(self):
         """Lazy properties"""
@@ -230,25 +235,30 @@ class Pod(footing.obj.Obj):
             "apiVersion": "v1",
             "kind": "Pod",
             "metadata": {"name": self.resource_name},
-            "spec": {
-                "containers": [asdict(self.runner.service)]
-                + [asdict(service) for service in self.services]
-            },
+            "spec": {"containers": [asdict(container) for container in self.containers]},
         }
-        yaml = footing.ext.mod("yaml", package="pyyaml")
-        self.spec = yaml.dump(spec)
+        self.spec = yaml_mod().dump(spec)
 
     ###
     # Core properties and extensions
     ###
 
     @property
+    def containers(self):
+        return self.services
+
+    @property
     def entry(self):
         return super().entry | {
             "build": footing.obj.Entry(method=self.build),
             "delete": footing.obj.Entry(method=self.delete),
-            "/": footing.obj.Entry(method=self.exec),
         }
+
+    def _fmt_resource_name(self, name):
+        name = re.sub("[^0-9a-zA-Z\-]+", "-", name).lower()
+        hash = xxhash.xxh32_hexdigest(f"{name}-{self.containers}")
+        max_name_len = 253 - (len(hash) + 1)
+        return f"{name[:max_name_len]}-{hash}"
 
     @property
     def resource_name(self):
@@ -256,22 +266,69 @@ class Pod(footing.obj.Obj):
 
     @functools.cached_property
     def _resource_name(self):
-        name = (self.name or "pod").replace("_", "-")
-        name += f"-{self.runner.resource_name}"
+        return self._fmt_resource_name(self.name or "pod")
 
-        # TODO: Might have to consider a better hashing strategy based on how
-        # a shared cluster is used
-        hash = xxhash.xxh32_hexdigest(f"{name}-{self.runner}")
-        max_name_len = 253 - (len(hash) + 1)
-        return f"{name[:max_name_len]}-{hash}".lower()
+    ###
+    # Core methods and properties
+    ###
+
+    def build(self, cache=True):
+        if self.is_cached and cache:
+            return
+
+        footing.cli.pprint("creating pod")
+        with tempfile.TemporaryDirectory() as tmp_d:
+            pod_yml_path = pathlib.Path(tmp_d) / "pod.yml"
+            with open(pod_yml_path, "w") as f:
+                f.write(self.spec)
+
+            footing.utils.run(f"{kubectl_bin()} apply -f {pod_yml_path}")
+
+        footing.cli.pprint("waiting for pod")
+        footing.utils.run(
+            f"{kubectl_bin()} wait --for=condition=ready --timeout '-1s' pod {self.resource_name}"
+        )
+
+        self.write_cache()
+
+    def delete(self):
+        self.delete_cache()
+
+        try:
+            footing.utils.run(
+                f"{kubectl_bin()} delete pod {self.resource_name}", stderr=subprocess.PIPE
+            )
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.decode("utf-8").strip() if exc.stderr else ""
+            if stderr == f'Error from server (NotFound): pods "{self.resource_name}" not found':
+                pass
+            else:
+                raise
+
+
+@dataclasses.dataclass
+class FootingPod(Pod):
+    runner: Runner = dataclasses.field(default_factory=Runner)
+
+    ###
+    # Core properties and extensions
+    ###
 
     @property
-    def kubectl_bin(self):
-        return self._kubectl_bin
+    def containers(self):
+        return [self.runner.service] + self.services
+
+    @property
+    def entry(self):
+        return super().entry | {
+            "/": footing.obj.Entry(method=self.exec),
+        }
 
     @functools.cached_property
-    def _kubectl_bin(self):
-        return footing.ext.bin("kubectl", package="kubernetes-client")
+    def _resource_name(self):
+        name = self.name or "pod"
+        name += f"-{self.runner.label}"
+        return self._fmt_resource_name(name)
 
     ###
     # Core methods and properties
@@ -293,7 +350,7 @@ class Pod(footing.obj.Obj):
 
                 footing.utils.run(
                     f"bash -c '{local_cmd}' && "
-                    f"{self.kubectl_bin} exec --stdin --tty -c {self.runner.service.name} {self.resource_name} -- bash -c '{remote_cmd}'",
+                    f"{kubectl_bin()} exec --stdin --tty -c {self.runner.service.name} {self.resource_name} -- bash -c '{remote_cmd}'",
                     stderr=subprocess.PIPE,
                 )
         except subprocess.CalledProcessError as exc:
@@ -309,35 +366,94 @@ class Pod(footing.obj.Obj):
             else:
                 raise
 
-    def build(self, cache=True):
-        if self.is_cached and cache:
-            return
 
-        footing.cli.pprint("creating pod")
-        with tempfile.TemporaryDirectory() as tmp_d:
-            pod_yml_path = pathlib.Path(tmp_d) / "pod.yml"
-            with open(pod_yml_path, "w") as f:
-                f.write(self.spec)
+def default_github_actions_service():
+    return Service(
+        image="footingorg/actions:latest",
+        name="github-actions-runner",
+        env=[
+            Env(
+                name="ORGANIZATION",
+                value_from=ValueFrom(
+                    secret_key_ref=SecretKeyRef(
+                        name="github-actions-provisioner",
+                        key="organization",
+                    )
+                ),
+            ),
+            Env(
+                name="ACCESS_TOKEN",
+                value_from=ValueFrom(
+                    secret_key_ref=SecretKeyRef(
+                        name="github-actions-provisioner",
+                        key="access-token",
+                    )
+                ),
+            ),
+        ],
+    )
 
-            footing.utils.run(f"{self.kubectl_bin} apply -f {pod_yml_path}")
 
-        footing.cli.pprint("waiting for pod")
-        footing.utils.run(
-            f"{self.kubectl_bin} wait --for=condition=ready --timeout '-1s' pod {self.resource_name}"
-        )
+@dataclasses.dataclass
+class GithubActionsPod(Pod):
+    """
+    For running github actions inside a cluster
+    """
 
-        self.write_cache()
+    def __post_init__(self):
+        self.services = [default_github_actions_service()]
 
-    def delete(self):
-        self.delete_cache()
-
-        try:
-            footing.utils.run(
-                f"{self.kubectl_bin} delete pod {self.resource_name}", stderr=subprocess.PIPE
-            )
-        except subprocess.CalledProcessError as exc:
-            stderr = exc.stderr.decode("utf-8").strip() if exc.stderr else ""
-            if stderr == f'Error from server (NotFound): pods "{self.resource_name}" not found':
-                pass
-            else:
-                raise
+    def render(self):
+        """Lazy properties"""
+        spec = {
+            "apiVersion": "v1",
+            "kind": "List",
+            "items": [
+                {
+                    "apiVersion": "v1",
+                    "kind": "ServiceAccount",
+                    "metadata": {"name": "internal-kubectl"},
+                },
+                {
+                    "apiVersion": "rbac.authorization.k8s.io/v1",
+                    "kind": "Role",
+                    "metadata": {"name": "modify-pods"},
+                    "rules": [
+                        {
+                            "apiGroups": [""],
+                            "resources": ["pods"],
+                            "verbs": [
+                                "get",
+                                "list",
+                                "watch",
+                                "create",
+                                "update",
+                                "patch",
+                                "delete",
+                            ],
+                        },
+                        {"apiGroups": [""], "resources": ["pods/exec"], "verbs": ["create"]},
+                    ],
+                },
+                {
+                    "apiVersion": "rbac.authorization.k8s.io/v1",
+                    "kind": "RoleBinding",
+                    "metadata": {"name": "modify-pods-to-sa"},
+                    "subjects": [{"kind": "ServiceAccount", "name": "internal-kubectl"}],
+                    "roleRef": {
+                        "kind": "Role",
+                        "name": "modify-pods",
+                        "apiGroup": "rbac.authorization.k8s.io",
+                    },
+                },
+                {
+                    "kind": "Pod",
+                    "metadata": {"name": self.resource_name},
+                    "spec": {
+                        "serviceAccountName": "internal-kubectl",
+                        "containers": [asdict(container) for container in self.containers],
+                    },
+                },
+            ],
+        }
+        self.spec = yaml_mod().dump(spec)

@@ -13,7 +13,7 @@ toolkit_m, func_m, obj_m, k8s_m = footing.config.module("toolkit", "func", "obj"
 # Cluster and runner definitions
 # ci_cluster = cluster.DitigalOceanCluster("canal-ci-cluster")
 # db_pod = pod.Runner(
-#    pod.Container("postgres:14.1"),
+#    pod.Service("postgres:14.1"),
 #    env=env.Env(
 #        DATABASE_URL="postgres://localhost:5432/hello"
 #    )
@@ -23,9 +23,7 @@ toolkit_m, func_m, obj_m, k8s_m = footing.config.module("toolkit", "func", "obj"
 # env = footing.core.Var(name="env", label="Environment", description="Hello", type=str)
 
 # Toolkits
-poetry = toolkit_m.Toolkit(
-    [toolkit_m.Conda(packages=["poetry==1.3.0", "python==3.11"])]
-)
+poetry = toolkit_m.Toolkit([toolkit_m.Conda(packages=["poetry==1.3.0", "python==3.11"])])
 black = toolkit_m.Toolkit([toolkit_m.Conda(packages=["black==22.12.0", "python==3.11"])])
 toolkit = toolkit_m.Toolkit(
     pre_install_hooks=[
@@ -48,28 +46,32 @@ toolkit = toolkit_m.Toolkit(
 fmt = func_m.Func(cmd="black .", toolkit=black)
 
 wheel = func_m.Func(
-    cmd="bash -c 'sh build.sh && git add -u && git commit -m \"new release\" && git push origin mvp'",
+    cmd="sh build.sh",
     toolkit=poetry,
 )
 
+docker_core = func_m.Func(
+    cmd="docker buildx build -f docker/core/Dockerfile -t footingorg/core --platform linux/arm64/v8 . --push",
+)
+
 docker_footing = func_m.Func(
-    cmd="docker buildx build -f docker/footing/Dockerfile -t footingorg/footing --platform linux/amd64,linux/arm64/v8 . --push",
+    cmd="docker buildx build -f docker/footing/Dockerfile -t footingorg/footing --platform linux/arm64/v8 . --push",
 )
 
 docker_runner = func_m.Func(
-    cmd="docker buildx build -f docker/runner/Dockerfile -t footingorg/runner --platform linux/amd64,linux/arm64/v8 . --push",
+    cmd="docker buildx build -f docker/runner/Dockerfile -t footingorg/runner --platform linux/arm64/v8 . --push",
 )
 
 docker_postgres = func_m.Func(
-    cmd="docker buildx build -f dockder/postgres/Dockerfile -t footingorg/postgres:15.1 --platform linux/amd64,linux/arm64/v8 . --push",
+    cmd="docker buildx build -f dockder/postgres/Dockerfile -t footingorg/postgres:15.1 --platform linux/arm64/v8 . --push",
 )
 
 docker_actions = func_m.Func(
-    cmd="docker buildx build -f docker/actions/Dockerfile -t footingorg/actions --platform linux/amd64,linux/arm64/v8 . --push",
+    cmd="docker buildx build -f docker/actions/Dockerfile -t footingorg/actions --platform linux/arm64/v8 . --push",
 )
 
 # Runners
-dev_pod = k8s_m.Pod(
+dev_pod = k8s_m.FootingPod(
     runner=k8s_m.RSyncRunner(),
     services=[
         k8s_m.Service(
@@ -84,6 +86,5 @@ dev_pod = k8s_m.Pod(
     ],
 )
 
-ci_pod = k8s_m.Pod(
-    runner=k8s_m.GitRunner(),
-)
+# Other cluster pods
+ga_pod = k8s_m.GithubActionsPod()

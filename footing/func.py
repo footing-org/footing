@@ -18,11 +18,6 @@ class FilesChanged(Condition):
 
 
 @dataclasses.dataclass
-class Cmd:
-    pass
-
-
-@dataclasses.dataclass
 class Join:
     """Join a command relative to a toolkit"""
 
@@ -36,7 +31,7 @@ class Join:
 
 @dataclasses.dataclass
 class Func(footing.obj.Obj):
-    cmd: typing.Union[str, Cmd] = None
+    cmd: typing.Union[str] = None
     condition: FilesChanged = None
     toolkit: "footing.toolkit.Toolkit" = None
 

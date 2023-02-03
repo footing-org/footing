@@ -1,33 +1,6 @@
-ARG BASE_IMAGE=debian:bullseye-slim
-
-# Mutli-stage build to keep final image small. Otherwise end up with
-# curl and openssl installed
-FROM $BASE_IMAGE AS builder
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    bzip2 \
-    ca-certificates \
-    curl \
-    && rm -rf /var/lib/apt /var/lib/dpkg /var/lib/cache /var/lib/log
-RUN mkdir /footing
-ENV FOOTING_SELF_INIT_NO_SHELL_INTEGRATION=1 FOOTING_SELF_INIT_NO_SYSTEM=1 FOOTING_BRANCH=mvp PREFIX=/footing
-
-ADD install.sh .
-RUN /bin/bash install.sh
-
-ADD *.whl .
-RUN /footing/toolkits/bin/pip3 install --upgrade --force-reinstall *.whl
-RUN /footing/toolkits/bin/footing self init
-
-RUN rm -rf /footing/toolkits/pkgs
-
 # Final image
-FROM $BASE_IMAGE
+FROM footingorg/core
 
-RUN mkdir /project
-WORKDIR /project
-ENV PATH=/footing/toolkits/bin:$PATH PYTHONUNBUFFERED=1
-
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-COPY --from=builder /footing /footing
-ENTRYPOINT ["footing"]
+# This is to help with layer caching and faster deployments for now. In the future we may place this in one layer
+ADD *.whl .
+RUN pip3 install --upgrade --force-reinstall *.whl && FOOTING_SELF_INIT_NO_SHELL_INTEGRATION=1 FOOTING_SELF_INIT_NO_SYSTEM=1 footing self init
