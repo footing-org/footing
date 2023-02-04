@@ -1,8 +1,3 @@
-FROM footingorg/core AS footing-core
-
-RUN micromamba -r /footing/toolkits/ install kubernetes-client pyyaml -n base -c conda-forge -y && \
-    rm -rf /footing/toolkits/pkgs
-
 FROM debian:bullseye-slim AS builder
 
 RUN apt-get update && apt-get upgrade && apt-get install -y --no-install-recommends \
@@ -21,6 +16,9 @@ RUN chown -R footing ~footing && /home/footing/actions-runner/bin/installdepende
 FROM footingorg/core
 
 COPY --from=builder / /
+
+RUN micromamba -r /footing/toolkits/ install kubernetes-client pyyaml rsync -n base -c conda-forge -y && \
+    rm -rf /footing/toolkits/pkgs
 RUN chown -R footing /footing
 
 # Copy the script for starting the runner

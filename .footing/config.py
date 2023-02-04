@@ -3,25 +3,6 @@ import footing.config
 
 toolkit_m, func_m, obj_m, k8s_m = footing.config.module("toolkit", "func", "obj", "k8s")
 
-# Repository
-# origin_repo = repo.Remote(
-#    name="origin",
-#    url="github.com/Opus10/hello-world"
-# )
-# local_repo = repo.Local()
-
-# Cluster and runner definitions
-# ci_cluster = cluster.DitigalOceanCluster("canal-ci-cluster")
-# db_pod = pod.Runner(
-#    pod.Service("postgres:14.1"),
-#    env=env.Env(
-#        DATABASE_URL="postgres://localhost:5432/hello"
-#    )
-# )
-
-# Variables
-# env = footing.core.Var(name="env", label="Environment", description="Hello", type=str)
-
 # Toolkits
 poetry = toolkit_m.Toolkit([toolkit_m.Conda(packages=["poetry==1.3.0", "python==3.11"])])
 black = toolkit_m.Toolkit([toolkit_m.Conda(packages=["black==22.12.0", "python==3.11"])])

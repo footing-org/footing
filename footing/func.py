@@ -31,7 +31,7 @@ class Join:
 
 @dataclasses.dataclass
 class Func(footing.obj.Obj):
-    cmd: typing.Union[str] = None
+    cmd: str = None
     condition: FilesChanged = None
     toolkit: "footing.toolkit.Toolkit" = None
 

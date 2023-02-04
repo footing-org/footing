@@ -1,6 +1,5 @@
 import dataclasses
 import functools
-import os
 import pathlib
 import re
 import subprocess
@@ -120,14 +119,6 @@ class GitRunner(Runner, footing.obj.Lazy):
     repo: str = None
     branch: str = None
 
-    @property
-    def is_github_action(self):
-        return (
-            "GITHUB_REPOSITORY" in os.environ
-            and "ACCESS_TOKEN" in os.environ
-            and "GITHUB_REF_NAME" in os.environ
-        )
-
     def render(self):
         """Lazily compute properties
 
@@ -136,30 +127,24 @@ class GitRunner(Runner, footing.obj.Lazy):
         be invalid
         """
         if not self.repo:
-            if self.is_github_action:
-                self.repo = f"https://{os.environ['ACCESS_TOKEN']}@github.com/{os.environ['GITHUB_REPOSITORY']}"
-            else:
-                out = footing.utils.run(
-                    f"{git_bin()} config --get remote.origin.url", stdout=subprocess.PIPE
-                )
-                url = out.stdout.decode("utf-8")
+            out = footing.utils.run(
+                f"{git_bin()} config --get remote.origin.url", stdout=subprocess.PIPE
+            )
+            url = out.stdout.decode("utf-8")
 
-                if url.startswith("git@github.com"):
-                    repo = url.strip().split(":", 1)[1][:-4]
-                    self.repo = f"https://github.com/{repo}"
-                elif url.startswith("https://github.com"):
-                    self.repo = url
-                else:
-                    raise ValueError(f'Invalid git remote repo URL - "{url}"')
+            if url.startswith("git@github.com"):
+                repo = url.strip().split(":", 1)[1][:-4]
+                self.repo = f"https://github.com/{repo}"
+            elif url.startswith("https://github.com"):
+                self.repo = url
+            else:
+                raise ValueError(f'Invalid git remote repo URL - "{url}"')
 
         if not self.branch:
-            if self.is_github_action:
-                self.branch = os.environ["GITHUB_REF_NAME"]
-            else:
-                out = footing.utils.run(
-                    f"{git_bin()} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
-                )
-                self.branch = out.stdout.decode("utf-8").strip()
+            out = footing.utils.run(
+                f"{git_bin()} rev-parse --abbrev-ref HEAD", stdout=subprocess.PIPE
+            )
+            self.branch = out.stdout.decode("utf-8").strip()
 
     ###
     # Core properties and extensions
@@ -447,6 +432,7 @@ class GithubActionsPod(Pod):
                     },
                 },
                 {
+                    "apiVersion": "v1",
                     "kind": "Pod",
                     "metadata": {"name": self.resource_name},
                     "spec": {
