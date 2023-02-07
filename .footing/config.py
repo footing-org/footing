@@ -1,11 +1,38 @@
 import footing.config
 
 
-toolkit_m, func_m, obj_m, k8s_m = footing.config.module("toolkit", "func", "obj", "k8s")
+toolkit_m, tools_m, func_m, obj_m, k8s_m, core_m = footing.config.module(
+    "toolkit", "tools", "func", "obj", "k8s", "core"
+)
+
+# New Code
+_black = tools_m.Toolkit([tools_m.Install(packages=["black==22.12.0", "python==3.11"])])
+format = _black / "black ."
+
+_poetry = tools_m.Toolkit([tools_m.Install(packages=["poetry==1.3.0", "python==3.11"])])
+lock = core_m.Task(
+    [_poetry / "poetry lock --no-update"],
+    input=[core_m.File("pyproject.toml")],
+    output=[core_m.File("poetry.lock")],
+)
+tools = tools_m.Toolkit(
+    [
+        tools_m.Install(packages=["python==3.11"]),
+        _poetry.bin / "poetry install",
+    ],
+    input=[lock],
+)
+
 
 # Toolkits
 poetry = toolkit_m.Toolkit([toolkit_m.Conda(packages=["poetry==1.3.0", "python==3.11"])])
 black = toolkit_m.Toolkit([toolkit_m.Conda(packages=["black==22.12.0", "python==3.11"])])
+
+fmt2 = (
+    tools_m.Toolkit([tools_m.Install(packages=["black==22.12.0", "python==3.11"])]).bin / "black ."
+)
+
+
 toolkit = toolkit_m.Toolkit(
     pre_install_hooks=[
         func_m.Func(

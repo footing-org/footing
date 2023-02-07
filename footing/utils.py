@@ -1,5 +1,4 @@
-import dataclasses
-import importlib
+import contextlib
 import os
 import pathlib
 import platform
@@ -43,6 +42,31 @@ def micromamba_path():
 
 def footing_path():
     return bin_path("footing")
+
+
+@contextlib.contextmanager
+def patch_env(env):
+    _environ = dict(os.environ)  # or os.environ.copy()
+    try:
+        os.environ.update(env)
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(_environ)
+
+
+@contextlib.contextmanager
+def patch_conda_env(prefix, isolate=False):
+    prefix = pathlib.Path(prefix)
+    add_path = "/usr/bin:/usr/local/bin" if isolate else os.environ.get("PATH", "")
+    with patch_env(
+        {
+            "PATH": f"{prefix / 'bin'}:{add_path}",
+            "CONDA_PREFIX": str(prefix),
+            "CONDA_DEFAULT_ENV": str(prefix.name),
+        }
+    ):
+        yield
 
 
 def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):

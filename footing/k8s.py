@@ -119,7 +119,7 @@ class GitRunner(Runner, footing.obj.Lazy):
     repo: str = None
     branch: str = None
 
-    def render(self):
+    def init(self):
         """Lazily compute properties
 
         Put repo and branch as public properties so that they are part of the hash.
@@ -170,7 +170,7 @@ class GitRunner(Runner, footing.obj.Lazy):
 class RSyncRunner(Runner, footing.obj.Lazy):
     hostname: str = None
 
-    def render(self):
+    def init(self):
         """Lazily compute properties"""
         if not self.hostname:
             out = footing.utils.run(f"hostname", stdout=subprocess.PIPE)
@@ -214,7 +214,7 @@ class Pod(footing.obj.Obj):
     services: typing.List[Service] = dataclasses.field(default_factory=list)
     spec: str = None
 
-    def render(self):
+    def init(self):
         """Lazy properties"""
         spec = {
             "apiVersion": "v1",
@@ -388,7 +388,7 @@ class GithubActionsPod(Pod):
     def __post_init__(self):
         self.services = [default_github_actions_service()]
 
-    def render(self):
+    def init(self):
         """Lazy properties"""
         spec = {
             "apiVersion": "v1",

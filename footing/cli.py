@@ -8,6 +8,7 @@ import sys
 import traceback
 
 import footing.config
+import footing.ctx
 
 
 unset = object()
@@ -116,7 +117,7 @@ def add_all_parsers(subparsers):
 
 def call_obj_entry(command, subcommand, kwargs):
     """Loads objects and calls entry points"""
-    entry = footing.config.obj(command, rendered=True).entry[subcommand]
+    entry = footing.config.obj(command, init=True).entry[subcommand]
     entry.method(**kwargs)
 
 
@@ -145,7 +146,8 @@ def main():
     parser = argparse.ArgumentParser()
     # TODO: All footing arguments need to be prefixed with _footing
     # in order to not collide with other dynamic commands
-    parser.add_argument("-d", "--debug", action="store_true")
+    parser.add_argument("-d", "--debug", action="store_true", dest="_footing_ctx_debug")
+    parser.add_argument("-f", "--no-cache", action="store_true", dest="_footing_ctx_no_cache")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Figure out which command was called and also keep track of the
@@ -191,26 +193,30 @@ def main():
     kwargs = vars(parser.parse_args(args_to_parse))
     kwargs.pop("command")
     subcommand = kwargs.pop("subcommand", "/" if slash else None) or "main"
-    debug = kwargs.pop("debug")
 
-    try:
-        if command in ("self", "shell"):
-            footing_module = importlib.import_module(f"footing.{command}")
-            getattr(footing_module, subcommand)(**kwargs)
-        elif slash:
-            call_obj_entry(command, subcommand, {"exe": exe, "args": sys.argv[command_i + 1 :]})
-        else:
-            call_obj_entry(command, subcommand, kwargs)
-    except Exception as exc:
-        if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
-            msg = exc.stderr.decode("utf8").strip()
-        else:
-            msg = str(exc)
+    with footing.ctx.set(
+        cache=not kwargs.pop("_footing_ctx_no_cache"), debug=kwargs.pop("_footing_ctx_debug")
+    ):
+        try:
+            if command in ("self", "shell"):
+                footing_module = importlib.import_module(f"footing.{command}")
+                getattr(footing_module, subcommand)(**kwargs)
+            elif slash:
+                call_obj_entry(
+                    command, subcommand, {"exe": exe, "args": sys.argv[command_i + 1 :]}
+                )
+            else:
+                call_obj_entry(command, subcommand, kwargs)
+        except Exception as exc:
+            if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
+                msg = exc.stderr.decode("utf8").strip()
+            else:
+                msg = str(exc)
 
-        msg = msg or "An unexpected error occurred"
+            msg = msg or "An unexpected error occurred"
 
-        pprint(msg, color="red")
-        if debug:
-            print(traceback.format_exc().strip())
+            pprint(msg, color="red")
+            if footing.ctx.get().debug:
+                print(traceback.format_exc().strip())
 
-        sys.exit(1)
+            sys.exit(1)

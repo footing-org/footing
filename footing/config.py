@@ -57,11 +57,11 @@ def register(**kwargs):
 
 
 @ensure_loaded()
-def obj(name, rendered=False):
+def obj(name, init=False):
     obj = _registry.get(name, None)
 
-    if obj and rendered:
-        obj.recursive_render()
+    if obj and init:
+        obj.init()
 
     return obj
 

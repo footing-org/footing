@@ -61,7 +61,7 @@ class Lazy:
     def is_rendered(self):
         return getattr(self, "_is_rendered", False)
 
-    def render(self):
+    def init(self):
         pass
 
     def recursive_render(self):
