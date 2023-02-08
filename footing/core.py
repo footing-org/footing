@@ -1,6 +1,7 @@
 import contextlib
 import dataclasses
 import itertools
+import os
 import re
 import typing
 import uuid
@@ -27,6 +28,10 @@ class Artifact:
     def __post_init__(self):
         self._registry[self._artifact_uuid] = self
 
+    @property
+    def obj_hash(self):
+        raise NotImplementedError
+
 
 @dataclasses.dataclass(kw_only=True)
 class Path(Artifact):
@@ -34,14 +39,26 @@ class Path(Artifact):
 
     path: str
 
+    @property
+    def obj_hash(self):
+        return f"{self.path}-{os.path.getmtime(self.path)}"
+
 
 @dataclasses.dataclass
 class Obj(footing.config.Configurable):
     """A core footing object"""
 
     def __post_init__(self):
+        # TODO: Make post_init freeze all dataclass properties since the hash is computed here
         serialized = orjson.dumps(self)
         self._obj_hash = footing.utils.hash128(serialized)
+
+        artifact_uuids = (
+            file.decode("utf-8") for file in re.findall(Artifact._uuid_re, serialized)
+        )
+        self._artifacts = {
+            artifact_uuid: Artifact._registry[artifact_uuid] for artifact_uuid in artifact_uuids
+        }
 
     @property
     def obj_hash(self):
@@ -96,8 +113,15 @@ class Task(Obj):
     deps: typing.List["Task"] = dataclasses.field(default_factory=list)
 
     @property
+    def artifacts(self):
+        # Output can be modified after __post_init__. Dynamically include those artifacts here
+        return (
+            self._artifacts | {output._artifact_uuid: output for output in self.output}
+        ).values()
+
+    @property
     def cli(self):
-        return {
+        return super().cli | {
             "main": Entry(method=self.__call__),
         }
 
@@ -129,6 +153,9 @@ class Task(Obj):
 
     def call(self):
         """Main implementation for calling object"""
+        if self.is_cached:
+            return
+
         with contextlib.ExitStack() as stack:
             for ctx in self.ctx:
                 stack.enter_context(ctx)
@@ -136,3 +163,34 @@ class Task(Obj):
             for cmd in itertools.chain(self.deps, self.ctx, self.input, self.cmd):
                 if not isinstance(cmd, Artifact):
                     call(cmd)
+
+        self.cache()
+
+    ###
+    # Caching
+    ###
+
+    @property
+    def is_cacheable(self):
+        return self.input or self.output
+
+    @property
+    def build_hash(self):
+        return footing.utils.hash128(
+            self.obj_hash + "".join(artifact.obj_hash for artifact in self.artifacts)
+        )
+
+    @property
+    def build_cache_file(self):
+        return footing.utils.install_path() / "cache" / self.build_hash
+
+    def cache(self):
+        if self.is_cacheable:
+            self.build_cache_file.touch()
+
+    def uncache(self):
+        self.build_cache_file.unlink(missing_ok=True)
+
+    @property
+    def is_cached(self):
+        return self.build_cache_file.exists() if self.is_cacheable else False

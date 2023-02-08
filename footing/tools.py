@@ -39,7 +39,7 @@ class Toolkit(footing.core.Task):
         # For now, every toolkit is duplicated for each project path. In the future we will be able to
         # globally share toolkits when only standard installers (e.g. conda) are used. When non-standard
         # ones are used (e.g. poetry), we must resort to namespacing it to avoid global clashes.
-        self._conda_env_name = f"{self.obj_hash}-{footing.utils.hash32(self.project)}"
+        self._conda_env_name = f"{self.name or self.obj_hash}-{footing.utils.hash32(self.project)}"
 
         # TODO: Find a better way to shorten environment names
         if len(str(self.conda_env_path)) > 113:
@@ -47,6 +47,8 @@ class Toolkit(footing.core.Task):
                 f"The installation path of this toolkit ({self.conda_env_path}) is too long ({len(self.conda_env_path)} > 113)."
                 " Try shortening your toolkit name."
             )
+
+        self.output += [footing.core.Path(path=str(self.conda_env_path))]
 
     @property
     def conda_env_name(self):
