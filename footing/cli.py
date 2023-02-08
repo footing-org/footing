@@ -88,7 +88,7 @@ def add_shell_parser(subparsers):
 
 
 def add_obj_parser(subparsers, obj):
-    entry = obj.entry
+    entry = obj.cli
     if not entry:
         return
 
@@ -99,7 +99,7 @@ def add_obj_parser(subparsers, obj):
 
 
 def add_exe_parser(subparsers, obj, slash):
-    entry = obj.entry
+    entry = obj.cli
     if not entry or "/" not in entry:
         return
 
@@ -117,7 +117,7 @@ def add_all_parsers(subparsers):
 
 def call_obj_entry(command, subcommand, kwargs):
     """Loads objects and calls entry points"""
-    entry = footing.config.obj(command, init=True).entry[subcommand]
+    entry = footing.config.obj(command).cli[subcommand]
     entry.method(**kwargs)
 
 
@@ -130,7 +130,7 @@ def get_obj(command):
     """
     try:
         if obj := footing.config.obj(command):
-            if obj.entry:
+            if obj.cli:
                 return obj
     except FileNotFoundError:
         return None

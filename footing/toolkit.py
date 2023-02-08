@@ -64,8 +64,8 @@ class Toolkit(footing.obj.Obj):
     ###
 
     @property
-    def entry(self):
-        return super().entry | {
+    def cli(self):
+        return super().cli | {
             "build": footing.obj.Entry(method=self.build),
             "delete": footing.obj.Entry(method=self.delete),
             "/": footing.obj.Entry(method=self.exec),

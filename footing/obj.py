@@ -117,7 +117,7 @@ class Obj(Lazy, footing.config.Configurable):
     ###
 
     @property
-    def entry(self):
+    def cli(self):
         return {}
 
     ###

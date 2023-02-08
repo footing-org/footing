@@ -36,7 +36,7 @@ class Func(footing.obj.Obj):
     toolkit: "footing.toolkit.Toolkit" = None
 
     @property
-    def entry(self):
+    def cli(self):
         return {
             "main": footing.obj.Entry(method=self.run),
         }

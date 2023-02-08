@@ -264,7 +264,7 @@ class Pod(footing.core.Task):
             f"{kubectl_bin()} wait --for=condition=ready --timeout '-1s' pod {self.resource_name}"
         )
 
-    '''
+    """
     def delete(self):
         self.delete_cache()
 
@@ -278,7 +278,7 @@ class Pod(footing.core.Task):
                 pass
             else:
                 raise
-    '''
+    """
 
 
 @dataclasses.dataclass

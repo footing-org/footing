@@ -57,13 +57,8 @@ def register(**kwargs):
 
 
 @ensure_loaded()
-def obj(name, init=False):
-    obj = _registry.get(name, None)
-
-    if obj and init:
-        obj.init()
-
-    return obj
+def obj(name):
+    return _registry.get(name, None)
 
 
 @ensure_loaded()

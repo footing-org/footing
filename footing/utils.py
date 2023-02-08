@@ -5,11 +5,20 @@ import platform
 import subprocess
 
 import shellingham
+import xxhash
 
 import footing.version
 
 
 unset = object()
+
+
+def hash32(val):
+    return xxhash.xxh32_hexdigest(val)
+
+
+def hash128(val):
+    return xxhash.xxh3_128_hexdigest(val)
 
 
 def install_path():

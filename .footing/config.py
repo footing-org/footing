@@ -1,13 +1,18 @@
 import footing.config
 
 
-toolkit_m, tools_m, func_m, obj_m, k8s_m, core_m = footing.config.module(
-    "toolkit", "tools", "func", "obj", "k8s", "core"
+toolkit_m, tools_m, func_m, obj_m, core_m = footing.config.module(
+    "toolkit", "tools", "func", "obj", "core"
 )
 
 # Toolkits
-_black = tools_m.Toolkit([tools_m.Install(packages=["black==22.12.0", "python==3.11"])])
-_poetry = tools_m.Toolkit([tools_m.Install(packages=["poetry==1.3.0", "python==3.11"])])
+black = tools_m.Toolkit([tools_m.Install(packages=["black==22.12.0", "python==3.11"])])
+
+fmt = core_m.Task(cmd=["black ."], ctx=[black])
+
+# _poetry = tools_m.Toolkit([tools_m.Install(packages=["poetry==1.3.0", "python==3.11"])])
+
+"""
 lock = core_m.Task(
     [_poetry / "poetry lock --no-update"],
     input=[core_m.File("pyproject.toml")],
@@ -20,7 +25,9 @@ tools = tools_m.Toolkit(
     ],
     input=[lock],
 )
+"""
 
+"""
 # Dev tasks
 format = _black / "black ."
 
@@ -39,8 +46,9 @@ dev_pod = k8s_m.RunnerPod(
         )
     ],
 )
+"""
 
-'''
+"""
 # Toolkits
 poetry = toolkit_m.Toolkit([toolkit_m.Conda(packages=["poetry==1.3.0", "python==3.11"])])
 black = toolkit_m.Toolkit([toolkit_m.Conda(packages=["black==22.12.0", "python==3.11"])])
@@ -113,4 +121,4 @@ dev_pod = k8s_m.FootingPod(
 
 # Other cluster pods
 ga_pod = k8s_m.GithubActionsPod()
-'''
+"""
