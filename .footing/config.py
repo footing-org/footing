@@ -1,14 +1,16 @@
-import footing.config
+import footing.config as footing
 
 
-toolkit_m, tools_m, func_m, obj_m, core_m = footing.config.module(
+toolkit_m, tools_m, func_m, obj_m, core_m = footing.module(
     "toolkit", "tools", "func", "obj", "core"
 )
 
 # Toolkits
-black = tools_m.Toolkit([tools_m.Install(packages=["black==22.12.0", "python==3.11"])])
+black = tools_m.toolkit("black==22.12.0", "python==3.11")
 
-fmt = core_m.Task(cmd=["black ."], ctx=[black])
+# fmt = core_m.Task(cmd=["black ."], ctx=[black])
+
+fmt = black / "black ."
 
 # _poetry = tools_m.Toolkit([tools_m.Install(packages=["poetry==1.3.0", "python==3.11"])])
 

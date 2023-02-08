@@ -40,8 +40,15 @@ class Path(Artifact):
     path: str
 
     @property
+    def mtime(self):
+        try:
+            return os.path.getmtime(self.path)
+        except FileNotFoundError:
+            return None
+
+    @property
     def obj_hash(self):
-        return f"{self.path}-{os.path.getmtime(self.path)}"
+        return f"{self.path}-{self.mtime}"
 
 
 @dataclasses.dataclass

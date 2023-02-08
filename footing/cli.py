@@ -88,14 +88,8 @@ def add_shell_parser(subparsers):
 
 
 def add_obj_parser(subparsers, obj):
-    entry = obj.cli
-    if not entry:
-        return
-
     obj_parser = subparsers.add_parser(obj.name)
-    obj_subparsers = obj_parser.add_subparsers(dest="subcommand", required="main" not in entry)
-    for name, val in entry.items():
-        obj_subparsers.add_parser(name)
+    obj_parser.add_subparsers(dest="subcommand", required=False)
 
 
 def add_exe_parser(subparsers, obj, slash):
@@ -116,9 +110,16 @@ def add_all_parsers(subparsers):
 
 
 def call_obj_entry(command, subcommand, kwargs):
-    """Loads objects and calls entry points"""
-    entry = footing.config.obj(command).cli[subcommand]
-    entry.method(**kwargs)
+    """Loads objects and calls them"""
+    assert subcommand == "main"
+    obj = footing.config.obj(command)
+
+    if isinstance(obj, footing.config.Lazy):
+        # This object is lazy loaded
+        obj = obj()
+
+    # Call the object
+    obj()
 
 
 def get_obj(command):
@@ -126,12 +127,10 @@ def get_obj(command):
     Get a footing object based on the command name.
 
     Footing objects are only returned if they are registered
-    and have entry points
     """
     try:
         if obj := footing.config.obj(command):
-            if obj.cli:
-                return obj
+            return obj
     except FileNotFoundError:
         return None
 
