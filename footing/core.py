@@ -4,6 +4,7 @@ import functools
 import itertools
 import re
 import typing
+import uuid
 
 import orjson
 import xxhash
@@ -13,7 +14,7 @@ import footing.ctx
 import footing.utils
 
 
-FILE_PATH_RE = re.compile(rb'{"file_path":"(?P<file_name>.*?)"}')
+_artifacts = {}
 
 
 def hash(val):
@@ -29,30 +30,8 @@ def hash_file(path):
 
 
 @dataclasses.dataclass
-class ObjRef:
-    """A reference to an object"""
-
-    obj_hash: str
-    files: typing.List[str]
-    hash: str
-
-
-@dataclasses.dataclass
-class FileRef:
-    """A reference to a file"""
-
-    mod: int
-    hash: str
-
-
-@dataclasses.dataclass
 class Entry:
     method: typing.Any
-
-
-@dataclasses.dataclass
-class CachedBuild:
-    hash: str
 
 
 @dataclasses.dataclass
@@ -94,6 +73,41 @@ def _lazy_init_inner(obj):
     return obj
 
 
+
+@dataclasses.dataclass
+class CachedObj:
+    hash: str
+
+
+@dataclasses.dataclass
+class Artifact:
+    # _artifact_uuid is a special name extracted and used to compute file hashes
+    # during object hashing. Do not change this name without changing
+    # _uuid_re
+    _artifact_uuid: str
+    _uuid_re = re.compile(rb'{"_artifact_uuid":"(?P<artifact_uuid>.*?)"}')
+
+    def __post_init__(self):
+        _artifacts[str(uuid.uuid4())] = self
+
+    def __call__(self):
+        pass
+
+
+@dataclasses.dataclass(kw_only=True)
+class Path(Artifact):
+    """A filesystem path"""
+    path: str
+
+
+@dataclasses.dataclass
+class Ref:
+    """A reference to an object"""
+
+    hash: str
+    artifacts: typing.List[Artifact]
+
+
 @dataclasses.dataclass
 class Obj(Lazy, footing.config.Configurable):
     """A core footing object"""
@@ -102,20 +116,16 @@ class Obj(Lazy, footing.config.Configurable):
     # Cached properties. We use private variables so that they aren't hashed
     ###
 
-    # @functools.cached_property
-    @property
+    @functools.cached_property
     def _ref(self):
         if not self.is_initialized:
-            raise RuntimeError("Must initialize object before computing ref")
+            raise RuntimeError("Cannot access ref of uninitialized object")
 
         serialized = orjson.dumps(self)
-        files = sorted(file.decode("utf-8") for file in set(re.findall(FILE_PATH_RE, serialized)))
-        full_hash = obj_hash = hash(serialized)
-        if files:
-            files_hash = "".join(hash_file(file) for file in files)
-            full_hash = hash(obj_hash + files_hash)
+        artifact_uuids = sorted(set(file.decode("utf-8") for file in set(re.findall(Artifact._uuid_re, serialized))))
+        artifacts = [_artifacts[artifact_uuid] for artifact_uuid in artifact_uuids]
 
-        return ObjRef(obj_hash=obj_hash, files=files, hash=full_hash)
+        return Ref(hash=hash(serialized), artifacts=artifacts)
 
     @property
     def ref(self):
@@ -124,6 +134,14 @@ class Obj(Lazy, footing.config.Configurable):
     ###
     # Other properties
     ###
+    
+    @property
+    def hash(self):
+        if self.ref.artifacts:
+            artifact_hashes = "".join(artifact.hash() for artifact in self.ref.artifacts)
+            return hash(self.ref.hash + artifact_hashes)
+        else:
+            return self.ref.hash
 
     @property
     def entry(self):
@@ -139,7 +157,7 @@ class Obj(Lazy, footing.config.Configurable):
 
     @property
     def cache_obj(self):
-        return CachedBuild(hash=self.ref.hash)
+        return CachedObj(hash=self.ref.hash)
 
     def read_cache(self):
         obj_cls = self.cache_obj.__class__
@@ -164,6 +182,11 @@ class Obj(Lazy, footing.config.Configurable):
         new_cache_obj = self.cache_obj
         old_cache_obj = self.read_cache()
         return old_cache_obj == new_cache_obj
+
+
+@dataclasses.dataclass
+class CachedTask(CachedObj):
+    output: typing.List[Artifact] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass
@@ -217,6 +240,10 @@ class Task(Obj):
             "main": Entry(method=self.__call__),
         }
 
+    @property
+    def is_cacheable(self):
+        return self.input or self.output
+
     def __enter__(self):
         self.init()
 
@@ -230,19 +257,22 @@ class Task(Obj):
         self._cm.__exit__(exc_type, exc_value, traceback)
         del self._cm
 
+    def __call__(self):
+        self.init()
+        return self.call()
+
+    def __truediv__(self, other):
+        task = self.div(other)
+        return task
+
     @contextlib.contextmanager
     def enter(self):
         """Main implementation for entering object"""
         yield
 
-    def __call__(self):
-        self.init()
-
-        return self.call()
-
-    @property
-    def is_cacheable(self):
-        return self.input or self.output
+    def div(self, cmd):
+        """Main implementation for the slash operator"""
+        return Task(cmd=[cmd], ctx=[self])
 
     def call(self):
         """Main implementation for calling object"""
@@ -258,17 +288,3 @@ class Task(Obj):
 
         if self.is_cacheable:
             self.write_cache()
-
-
-@dataclasses.dataclass
-class Artifact(Obj):
-    def __call__(self):
-        pass
-
-
-@dataclasses.dataclass
-class File(Artifact):
-    # file_path is a special name extracted and used to compute file hashes
-    # during object hashing. Do not change this name without changing
-    # FILE_PATH_RE
-    file_path: str

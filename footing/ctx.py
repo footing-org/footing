@@ -1,5 +1,3 @@
-# TODO: consider renaming this the settings module
-
 import contextlib
 import copy
 import dataclasses

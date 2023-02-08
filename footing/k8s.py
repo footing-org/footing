@@ -8,6 +8,7 @@ import typing
 
 import xxhash
 
+import footing.core
 import footing.ext
 import footing.obj
 import footing.utils
@@ -115,11 +116,11 @@ class Runner:
 
 
 @dataclasses.dataclass
-class GitRunner(Runner, footing.obj.Lazy):
+class GitRunner(Runner, footing.core.Lazy):
     repo: str = None
     branch: str = None
 
-    def init(self):
+    def lazy_init(self):
         """Lazily compute properties
 
         Put repo and branch as public properties so that they are part of the hash.
@@ -167,10 +168,10 @@ class GitRunner(Runner, footing.obj.Lazy):
 
 
 @dataclasses.dataclass
-class RSyncRunner(Runner, footing.obj.Lazy):
+class RSyncRunner(Runner, footing.core.Lazy):
     hostname: str = None
 
-    def init(self):
+    def lazy_init(self):
         """Lazily compute properties"""
         if not self.hostname:
             out = footing.utils.run(f"hostname", stdout=subprocess.PIPE)
@@ -196,25 +197,14 @@ class RSyncRunner(Runner, footing.obj.Lazy):
 
 
 @dataclasses.dataclass
-class Cluster(footing.obj.Obj):
-    context: str
-
-    @property
-    def entry(self):
-        return super().entry | {
-            "/": footing.obj.Entry(method=self.exec),
-        }
-
-    def build(self):
-        pass
-
-
-@dataclasses.dataclass
-class Pod(footing.obj.Obj):
+class Pod(footing.core.Task):
     services: typing.List[Service] = dataclasses.field(default_factory=list)
     spec: str = None
 
-    def init(self):
+    def __post_init__(self):
+        self.cmd += [footing.core.Callable(self.create)]
+
+    def lazy_init(self):
         """Lazy properties"""
         spec = {
             "apiVersion": "v1",
@@ -229,15 +219,12 @@ class Pod(footing.obj.Obj):
     ###
 
     @property
-    def containers(self):
-        return self.services
+    def is_cacheable(self):
+        return True
 
     @property
-    def entry(self):
-        return super().entry | {
-            "build": footing.obj.Entry(method=self.build),
-            "delete": footing.obj.Entry(method=self.delete),
-        }
+    def containers(self):
+        return self.services
 
     def _fmt_resource_name(self, name):
         name = re.sub("[^0-9a-zA-Z\-]+", "-", name).lower()
@@ -257,10 +244,13 @@ class Pod(footing.obj.Obj):
     # Core methods and properties
     ###
 
-    def build(self, cache=True):
-        if self.is_cached and cache:
-            return
+    def enter(self):
+        """
+        When a task enters this pod, set the appropriate context to be sure
+        the task will be executed remotely on it.
+        """
 
+    def create(self):
         footing.cli.pprint("creating pod")
         with tempfile.TemporaryDirectory() as tmp_d:
             pod_yml_path = pathlib.Path(tmp_d) / "pod.yml"
@@ -274,8 +264,7 @@ class Pod(footing.obj.Obj):
             f"{kubectl_bin()} wait --for=condition=ready --timeout '-1s' pod {self.resource_name}"
         )
 
-        self.write_cache()
-
+    '''
     def delete(self):
         self.delete_cache()
 
@@ -289,10 +278,11 @@ class Pod(footing.obj.Obj):
                 pass
             else:
                 raise
+    '''
 
 
 @dataclasses.dataclass
-class FootingPod(Pod):
+class RunnerPod(Pod):
     runner: Runner = dataclasses.field(default_factory=Runner)
 
     ###
@@ -302,12 +292,6 @@ class FootingPod(Pod):
     @property
     def containers(self):
         return [self.runner.service] + self.services
-
-    @property
-    def entry(self):
-        return super().entry | {
-            "/": footing.obj.Entry(method=self.exec),
-        }
 
     @functools.cached_property
     def _resource_name(self):

@@ -100,13 +100,6 @@ class Toolkit(footing.core.Task):
         """Return a task that directly references a binary"""
         return ToolkitBinFolder(toolkit=self)
 
-    def __truediv__(self, cmd):
-        """The / operator
-
-        Returns a task that's executed within the toolkit
-        """
-        return footing.core.Task(cmd=[cmd], ctx=[self])
-
     def _create_conda_env(self):
         """Ran during the very end of input when running the toolkit task"""
         if "_ref" in self.__dict__:
@@ -134,7 +127,7 @@ class ToolkitBinFolder(footing.core.Task):
         self.deps += [self.toolkit]
         self.cmd += [f"ls {self.toolkit.conda_env_path / 'bin'}"]
 
-    def __truediv__(self, bin):
+    def div(self, bin):
         """The / operator
 
         Returns a binary command within the bin folder
