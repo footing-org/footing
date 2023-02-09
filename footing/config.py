@@ -19,7 +19,10 @@ class Configurable:
 
 
 def module(*names):
-    return [importlib.import_module(f"footing.{name}") for name in names]
+    if len(names) == 1:
+        return importlib.import_module(f"footing.{names[0]}")
+    else:
+        return [importlib.import_module(f"footing.{name}") for name in names]
 
 
 def load():
@@ -69,8 +72,27 @@ def registry():
     return _registry
 
 
+def lazy_eval(obj):
+    return obj() if isinstance(obj, Lazy) else obj
+
+
 class Lazy(Configurable):
-    pass
+    def enter(self, other):
+        raise NotImplementedError
+
+    @property
+    def obj_class(self):
+        raise NotImplementedError
+
+    @property
+    def obj_kwargs(self):
+        return {}
+
+    def __call__(self, *args, **kwargs):
+        return self.obj_class(**self.obj_kwargs)
+
+    def _lazy_eval(self, obj):
+        return lazy_eval(obj)
 
 
 def _core():
@@ -79,8 +101,8 @@ def _core():
     return footing.core
 
 
-class compile(Lazy):
-    """Compiles chained objects"""
+class compiler(Lazy):
+    """Compiles objects"""
 
     def __init__(self, *objs):
         self._objs = list(objs)
@@ -92,64 +114,70 @@ class compile(Lazy):
     def __call__(self, *args, **kwargs):
         assert self._objs
 
-        objs = [task(obj) if isinstance(obj, str) else obj for obj in self._objs]
+        # Always start with a new task that can be modified during Lazy.compile()
+        compiled = task(self._objs[-1])
 
-        obj = objs[-1]
-        for val in reversed(objs[:-1]):
-            obj._ctx.append(val)
+        for val in reversed(self._objs[:-1]):
+            val = task(val) if isinstance(val, str) else val
+            compiled = val.compile(compiled)
 
-        return obj(*args, **kwargs)
+        return compiled(*args, **kwargs)
 
 
 class task(Lazy):
     def __init__(self, *cmd, input=None, output=None):
-        self._cmd = cmd
+        self._cmd = list(cmd)
         self._input = input
         self._output = output
         self._ctx = []
         self._deps = []
 
     def __truediv__(self, obj):
-        return compile(self) / obj
+        return compiler(self) / obj
 
     @property
     def obj_class(self):
         return _core().Task
 
     @property
+    def obj_kwargs(self):
+        return {
+            "cmd": self.cmd,
+            "input": self.input,
+            "output": self.output,
+            "_name": self._name,
+            "ctx": self.ctx,
+            "deps": self.deps,
+        }
+
+    def compile(self, obj):
+        obj._ctx.append(self)
+        return obj
+
+    @property
     def input(self):
         input = self._input or []
         input = [input] if not isinstance(input, (list, tuple)) else input
-        input = (_core().Path(val) if isinstance(val, str) else val for val in input)
-        return [val() if isinstance(val, Lazy) else val for val in input]
+        input = (_core().Path(path=val) if isinstance(val, str) else val for val in input)
+        return [self._lazy_eval(val) for val in input]
 
     @property
     def output(self):
         output = self._output or []
         output = [output] if not isinstance(output, (list, tuple)) else output
-        output = (_core().Path(val) if isinstance(val, str) else val for val in output)
-        return [val() if isinstance(val, Lazy) else val for val in output]
+        output = (_core().Path(path=val) if isinstance(val, str) else val for val in output)
+        return [self._lazy_eval(val) for val in output]
 
     @property
     def cmd(self):
-        return [val() if isinstance(val, Lazy) else val for val in self._cmd]
+        return [self._lazy_eval(val) for val in self._cmd]
 
     @property
     def deps(self):
         deps = self._deps or []
-        return [val() if isinstance(val, Lazy) else val for val in deps]
+        return [self._lazy_eval(val) for val in deps]
 
     @property
     def ctx(self):
         ctx = self._ctx or []
-        return [val() if isinstance(val, Lazy) else val for val in ctx]
-
-    def __call__(self, *args, **kwargs):
-        return self.obj_class(
-            cmd=self.cmd,
-            input=self.input,
-            output=self.output,
-            _name=self._name,
-            ctx=self.ctx,
-            deps=self.deps,
-        )
+        return [self._lazy_eval(val) for val in ctx]

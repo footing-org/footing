@@ -1,15 +1,18 @@
 import footing.config as footing
 
 
-toolkit_m, tools_m, func_m, obj_m, core_m = footing.module(
-    "toolkit", "tools", "func", "obj", "core"
-)
+tools = footing.module("tools")
 
 # Toolkits
-black = tools_m.toolkit("black==22.12.0", "python==3.11")
+black = tools.toolkit("black==22.12.0", "python==3.11")
+poetry = tools.toolkit("poetry==1.3.0", "python==3.11")
 
-# fmt = core_m.Task(cmd=["black ."], ctx=[black])
+lock = footing.task(
+    poetry / "poetry lock --no-update", input="pyproject.toml", output="poetry.lock"
+)
+tk = tools.toolkit("python==3.11", poetry.bin / "poetry install", input=lock)
 
+# Tasks
 fmt = black / "black ."
 
 # _poetry = tools_m.Toolkit([tools_m.Install(packages=["poetry==1.3.0", "python==3.11"])])

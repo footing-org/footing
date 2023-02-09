@@ -1,13 +1,52 @@
 """Core configuration for tools"""
+import copy
+
 import footing.config
 
 
-def _tools():
-    import footing.tools.core  # Always do nested imports in the config module
+def _core():  # Always do nested imports in the config module
+    import footing.core
+
+    return footing.core
+
+
+def _tools():  # Always do nested imports in the config module
+    import footing.tools.core
 
     return footing.tools.core
 
 
+class bin(footing.config.task):
+    def __init__(self, toolkit):
+        self._toolkit = toolkit
+        super().__init__()
+
+    @property
+    def toolkit(self):
+        return self._lazy_eval(self._toolkit)
+
+    @property
+    def obj_class(self):
+        return _tools().Bin
+
+    @property
+    def obj_kwargs(self):
+        return super().obj_kwargs | {"toolkit": self.toolkit}
+
+    def compile(self, obj):
+        bin = copy.copy(self)
+        bin._cmd = bin._cmd + [obj]
+        return bin
+
+
+#
+# Task:
+#   cmd = ["pytest"]
+#
+
+# Bin:
+#   cmd = [Callable(self.bin, "pytest")]
+#   deps = [Task]
 class toolkit(footing.config.task):
     @property
     def obj_class(self):
@@ -34,3 +73,7 @@ class toolkit(footing.config.task):
             _tools().Install(packages=val) if isinstance(val, (list, tuple)) else val
             for val in cmd
         ]
+
+    @property
+    def bin(self):
+        return bin(self)

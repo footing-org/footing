@@ -78,7 +78,7 @@ class Obj(footing.config.Configurable):
 
 @dataclasses.dataclass
 class Callable:
-    """A serializable lazy callable that can be used in footing tasks"""
+    """A serializable lazy callable for functions"""
 
     _callable: typing.Callable
     _args: typing.List[typing.Any] = dataclasses.field(default_factory=list)
@@ -99,7 +99,15 @@ class Callable:
         del self._cm
 
 
+@dataclasses.dataclass
+class Shell(Callable):
+    """A serialized lazy callable treated as a shell command"""
+
+
 def call(cmd):
+    if isinstance(cmd, Shell):
+        cmd = cmd()
+
     if isinstance(cmd, str):
         footing.cli.pprint(cmd.removeprefix(footing.utils.conda_exe() + " "))
 
@@ -118,6 +126,15 @@ class Task(Obj):
     output: typing.List[Artifact] = dataclasses.field(default_factory=list)
     ctx: typing.List[typing.Union["Task", Callable]] = dataclasses.field(default_factory=list)
     deps: typing.List["Task"] = dataclasses.field(default_factory=list)
+
+    @property
+    def leaf_cmd(self):
+        """Iterate over the leaf commands"""
+        for cmd in self.cmd:
+            if isinstance(cmd, Task):
+                yield from cmd.leaf_cmd
+            else:
+                yield cmd
 
     @property
     def artifacts(self):
@@ -193,7 +210,11 @@ class Task(Obj):
 
     def cache(self):
         if self.is_cacheable:
-            self.build_cache_file.touch()
+            try:
+                self.build_cache_file.touch()
+            except FileNotFoundError:
+                self.build_cache_file.mkdir(parents=True, exist_ok=True)
+                self.build_cache_file.touch()
 
     def uncache(self):
         self.build_cache_file.unlink(missing_ok=True)

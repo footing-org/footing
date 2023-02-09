@@ -67,3 +67,21 @@ class Toolkit(footing.core.Task):
     def _create_conda_env(self):
         """Ran as a dependency"""
         footing.utils.conda_cmd(f"create -q -y -p {self.conda_env_path}")
+
+
+@dataclasses.dataclass(kw_only=True)
+class Bin(footing.core.Task):
+    toolkit: str = Toolkit
+
+    def __post_init__(self):
+        self.deps += [self.toolkit]
+        if self.cmd:
+            self.cmd = [footing.core.Shell(self.bin_cmd, [cmd]) for cmd in self.leaf_cmd]
+        else:
+            self.cmd += [footing.core.Shell(self.bin_ls)]
+
+    def bin_cmd(self, cmd):
+        return str(self.toolkit.conda_env_path / "bin" / cmd)
+
+    def bin_ls(self):
+        return f"ls {self.toolkit.conda_env_path / 'bin'}"
