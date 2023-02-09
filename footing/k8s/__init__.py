@@ -47,6 +47,9 @@ class pod(footing.config.task):
     def __init__(self, *services):
         self._services = list(services)
 
+    def enter(self, obj):
+        return run(pod=self, task=obj)
+
     @property
     def obj_class(self):
         return _k8s().Pod
@@ -58,6 +61,20 @@ class pod(footing.config.task):
     @property
     def services(self):
         return [service(val) if isinstance(val, str) else val for val in self._services]
+
+
+class run(footing.config.task):
+    def __init__(self, pod, task):
+        self._pod = pod
+        self._task = task
+
+    @property
+    def obj_kwargs(self):
+        return {"pod": self._pod, "task": self._task}
+
+    @property
+    def obj_class(self):
+        return _k8s().Run
 
 
 class runner(pod):

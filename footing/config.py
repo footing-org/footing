@@ -8,6 +8,12 @@ import sys
 _registry = None
 
 
+def _core():  # Always do nested imports in the config module
+    import footing.core
+
+    return footing.core
+
+
 @dataclasses.dataclass(kw_only=True)
 class Configurable:
     _config_name: str = None
@@ -86,9 +92,6 @@ def lazy_eval(obj):
 
 
 class Lazy(Configurable):
-    def enter(self, other):
-        raise NotImplementedError
-
     @property
     def obj_class(self):
         raise NotImplementedError
@@ -101,14 +104,16 @@ class Lazy(Configurable):
         return self.obj_class(**lazy_eval(self.obj_kwargs))
 
 
-def _core():  # Always do nested imports in the config module
-    import footing.core
+class Enterable:
+    def __truediv__(self, obj):
+        return enter(self) / obj
 
-    return footing.core
+    def enter(self, obj):
+        raise NotImplementedError
 
 
-class compiler(Lazy):
-    """Compiles objects"""
+class enter(Lazy):
+    """Enter a list of objects"""
 
     def __init__(self, *objs):
         self._objs = list(objs)
@@ -120,26 +125,23 @@ class compiler(Lazy):
     def __call__(self, *args, **kwargs):
         assert self._objs
 
-        # Always start with a new task that can be modified during Lazy.compile()
+        # Always start with a new task that can be modified during Lazy.enter()
         compiled = task(self._objs[-1])
 
         for val in reversed(self._objs[:-1]):
             val = task(val) if isinstance(val, str) else val
-            compiled = val.compile(compiled)
+            compiled = val.enter(compiled)
 
         return compiled(*args, **kwargs)
 
 
-class task(Lazy):
+class task(Lazy, Enterable):
     def __init__(self, *cmd, input=None, output=None):
         self._cmd = list(cmd)
         self._input = input
         self._output = output
         self._ctx = []
         self._deps = []
-
-    def __truediv__(self, obj):
-        return compiler(self) / obj
 
     @property
     def obj_class(self):
@@ -156,7 +158,7 @@ class task(Lazy):
             "deps": self.deps,
         }
 
-    def compile(self, obj):
+    def enter(self, obj):
         obj._ctx.append(self)
         return obj
 

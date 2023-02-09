@@ -61,7 +61,7 @@ class bin(footing.config.task):
     def obj_kwargs(self):
         return super().obj_kwargs | {"toolkit": self._toolkit}
 
-    def compile(self, obj):
+    def enter(self, obj):
         bin = copy.copy(self)
         bin._cmd = bin._cmd + [obj]
         return bin

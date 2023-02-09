@@ -1,6 +1,7 @@
 import contextlib
 import copy
 import dataclasses
+import os
 
 
 _ctx = None
@@ -13,6 +14,7 @@ class Ctx:
     cache: bool = True
     debug: bool = False
     env: dict = dataclasses.field(default_factory=dict)
+    is_remote: bool = dataclasses.field(default_factory=lambda: "FOOTING_IS_REMOTE" in os.environ)
 
     def update(self, **kwargs):
         for key, val in kwargs.items():

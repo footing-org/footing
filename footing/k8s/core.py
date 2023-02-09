@@ -1,7 +1,12 @@
+import contextlib
 import dataclasses
 import functools
+import os
 import pathlib
 import re
+import shlex
+import subprocess
+import sys
 import tempfile
 import typing
 
@@ -20,11 +25,6 @@ def rsync_bin():
 @functools.cache
 def kubectl_bin():
     return footing.ext.bin("kubectl", package="kubernetes-client")
-
-
-@functools.cache
-def git_bin():
-    return footing.ext.bin("git")
 
 
 def asdict(obj):
@@ -113,9 +113,19 @@ class Pod(footing.core.Task):
 
         super().__post_init__()
 
-    ###
-    # Core properties and extensions
-    ###
+    @property
+    def is_cacheable(self):
+        return True
+
+    @contextlib.contextmanager
+    def enter(self):
+        if not self.config_name:
+            raise RuntimeError(
+                "Pods must be named to use as remote runners. Assign it to a variable."
+            )
+
+        with footing.ctx.set(runner=self.name):
+            yield
 
     @property
     def containers(self):
@@ -135,9 +145,10 @@ class Pod(footing.core.Task):
     def _resource_name(self):
         return self._fmt_resource_name(self.config_name or "pod")
 
-    ###
-    # Core methods and properties
-    ###
+    @property
+    def default_exec_service(self):
+        """The service in which exec commands happen by default"""
+        return self.services[-1].name
 
     def create(self):
         footing.cli.pprint("creating pod")
@@ -159,6 +170,7 @@ def default_runner_service():
         image="footingorg/runner:latest",
         name="runner",
         image_pull_policy="Always",
+        env=[Env(name="FOOTING_IS_REMOTE", value="True")],
     )
 
 
@@ -169,3 +181,37 @@ class Runner(Pod):
         self.services.append(self._runner)
 
         super().__post_init__()
+
+
+@dataclasses.dataclass(kw_only=True)
+class Run(footing.core.Task):
+    """A remote pod task"""
+
+    pod: Pod
+    task: footing.core.Task
+
+    def __post_init__(self):
+        self.cmd += [footing.core.Callable(self.run)]
+        if not self.is_remote:
+            self.deps += [self.pod]
+
+    @property
+    def is_remote(self):
+        return "FOOTING_IS_REMOTE" in os.environ
+
+    def run(self):
+        if not self.is_remote:
+            rsync_flags = '-aur --blocking-io --include="**.gitignore" --exclude="/.git" --filter=":- .gitignore" --delete-after --rsync-path='
+            rsh = f'--rsh="{kubectl_bin()} exec -c {self.pod.default_exec_service} {self.pod.resource_name} -i -- "'
+
+            local_cmd = f"{rsync_bin()} {rsync_flags} {rsh} . rsync:/project"
+            remote_cmd = shlex.join(["footing"] + sys.argv[1:])
+
+            cmd = (
+                f"bash -c '{local_cmd}' && "
+                f"{kubectl_bin()} exec --stdin --tty -c {self.pod.default_exec_service} {self.pod.resource_name} -- bash -c '{remote_cmd}'"
+            )
+            footing.cli.pprint("provisioning")
+            footing.utils.run(cmd, stderr=subprocess.PIPE)
+        else:
+            self.task()
