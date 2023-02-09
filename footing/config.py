@@ -10,12 +10,12 @@ _registry = None
 
 @dataclasses.dataclass(kw_only=True)
 class Configurable:
-    _name: str = None
+    _config_name: str = None
 
     @property
-    def name(self):
+    def config_name(self):
         """The configured name of this object"""
-        return getattr(self, "_name", None)
+        return getattr(self, "_config_name", None)
 
 
 def module(*names):
@@ -59,7 +59,7 @@ def register(**kwargs):
 
     for name, value in kwargs.items():
         _registry[name] = value
-        value._name = name
+        value._config_name = name
 
 
 @ensure_loaded()
@@ -101,8 +101,8 @@ class Lazy(Configurable):
         return self.obj_class(**lazy_eval(self.obj_kwargs))
 
 
-def _core():
-    import footing.core  # Always do nested imports in the config module
+def _core():  # Always do nested imports in the config module
+    import footing.core
 
     return footing.core
 
@@ -151,7 +151,7 @@ class task(Lazy):
             "cmd": self.cmd,
             "input": self.input,
             "output": self.output,
-            "_name": self._name,
+            "_config_name": self._config_name,
             "ctx": self.ctx,
             "deps": self.deps,
         }

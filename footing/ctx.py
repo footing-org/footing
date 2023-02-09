@@ -12,6 +12,14 @@ class Ctx:
 
     cache: bool = True
     debug: bool = False
+    env: dict = dataclasses.field(default_factory=dict)
+
+    def update(self, **kwargs):
+        for key, val in kwargs.items():
+            if isinstance(val, dict):
+                val = getattr(self, key, {}) | val
+
+            setattr(self, key, val)
 
 
 def get():
@@ -32,9 +40,7 @@ def set(**kwargs):
     prev = copy.copy(ctx)
 
     try:
-        for key, val in kwargs.items():
-            setattr(ctx, key, val)
-
+        ctx.update(**kwargs)
         yield ctx
     finally:
         _ctx = prev

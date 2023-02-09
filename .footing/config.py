@@ -1,7 +1,7 @@
 import footing.config as footing
 
 
-tools = footing.module("tools")
+tools, k8s = footing.module("tools", "k8s")
 
 # Toolkits
 black = tools.toolkit("black==22.12.0", "python==3.11")
@@ -17,6 +17,11 @@ fmt = black / "black ."
 
 # Artifacts
 wheel = footing.task(poetry / "sh build.sh", input="**", output="*.whl")
+
+# Runners
+dev_pod = k8s.runner(k8s.sleepy("ubuntu"))
+
+rfmt = dev_pod / fmt
 
 """
 lock = core_m.Task(

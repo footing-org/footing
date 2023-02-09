@@ -88,7 +88,7 @@ def add_shell_parser(subparsers):
 
 
 def add_obj_parser(subparsers, obj):
-    obj_parser = subparsers.add_parser(obj.name)
+    obj_parser = subparsers.add_parser(obj.config_name)
     obj_parser.add_subparsers(dest="subcommand", required=False)
 
 
@@ -97,7 +97,7 @@ def add_exe_parser(subparsers, obj, slash):
     if not entry or "/" not in entry:
         return
 
-    obj_parser = subparsers.add_parser(f"{obj.name}/{slash}")
+    obj_parser = subparsers.add_parser(f"{obj.config_name}/{slash}")
     obj_parser.add_argument("args", nargs=argparse.REMAINDER)
 
 

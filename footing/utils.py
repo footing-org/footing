@@ -7,6 +7,7 @@ import subprocess
 import shellingham
 import xxhash
 
+import footing.ctx
 import footing.version
 
 
@@ -80,8 +81,8 @@ def patch_conda_env(prefix, isolate=False):
 
 def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
     """Runs a subprocess shell with check=True by default"""
-    if env:
-        env = os.environ | env
+    if env or footing.ctx.get().env:
+        env = os.environ | footing.ctx.get().env | (env or {})
 
     return subprocess.run(
         cmd,

@@ -49,8 +49,8 @@ class Toolkit(footing.obj.Obj):
     @functools.cached_property
     def _conda_env_name(self):
         # TODO: Ensure names from other projects don't collide when choosing an env name.
-        name = self.name or self.ref.hash
-        if self.name or self.editable:
+        name = self.config_name or self.ref.hash
+        if self.config_name or self.editable:
             name += f"-{xxhash.xxh32_hexdigest(str(pathlib.Path.cwd()))}"
 
         return name

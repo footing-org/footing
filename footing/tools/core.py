@@ -1,5 +1,6 @@
 import contextlib
 import dataclasses
+import os
 import pathlib
 import typing
 
@@ -39,7 +40,9 @@ class Toolkit(footing.core.Task):
         # For now, every toolkit is duplicated for each project path. In the future we will be able to
         # globally share toolkits when only standard installers (e.g. conda) are used. When non-standard
         # ones are used (e.g. poetry), we must resort to namespacing it to avoid global clashes.
-        self._conda_env_name = f"{self.name or self.obj_hash}-{footing.utils.hash32(self.project)}"
+        self._conda_env_name = (
+            f"{self.config_name or self.obj_hash}-{footing.utils.hash32(self.project)}"
+        )
 
         # TODO: Find a better way to shorten environment names
         if len(str(self.conda_env_path)) > 113:
@@ -60,8 +63,15 @@ class Toolkit(footing.core.Task):
 
     @contextlib.contextmanager
     def enter(self):
-        # TODO: Edit the global runtime context instead of patching directly
-        with footing.utils.patch_conda_env(self.conda_env_path):
+        # TODO: Allow users to set isolation levels on the PATH
+        prefix = self.conda_env_path
+        with footing.ctx.set(
+            env={
+                "PATH": f"{prefix / 'bin'}:{os.environ.get('PATH', '')}",
+                "CONDA_PREFIX": str(prefix),
+                "CONDA_DEFAULT_ENV": str(prefix.name),
+            }
+        ):
             yield
 
     def _create_conda_env(self):
