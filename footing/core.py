@@ -1,10 +1,10 @@
 import contextlib
 import dataclasses
+import glob
 import itertools
 import os
 import re
 import typing
-import uuid
 
 import orjson
 
@@ -19,14 +19,14 @@ class Entry:
 
 @dataclasses.dataclass
 class Artifact:
-    _artifact_uuid: str = dataclasses.field(default_factory=uuid.uuid4)
+    artifact_uuid: str = dataclasses.field()
 
     # Used to extract artifacts from serialized objects
-    _uuid_re = re.compile(rb'{"_artifact_uuid":"(?P<artifact_uuid>.*?)"}')
+    _uuid_re = re.compile(rb'{"artifact_uuid":"(?P<artifact_uuid>.*?)"')
     _registry = {}  # Global registry of artifacts
 
     def __post_init__(self):
-        self._registry[self._artifact_uuid] = self
+        self._registry[self.artifact_uuid] = self
 
     @property
     def obj_hash(self):
@@ -37,18 +37,28 @@ class Artifact:
 class Path(Artifact):
     """A filesystem path"""
 
-    path: str
-
-    @property
-    def mtime(self):
+    def mtime(self, file):
         try:
-            return os.path.getmtime(self.path)
+            return os.path.getmtime(file)
         except FileNotFoundError:
             return None
 
     @property
     def obj_hash(self):
-        return f"{self.path}-{self.mtime}"
+        if mtime := self.mtime(self.artifact_uuid):
+            return f"{self.artifact_uuid}:{mtime}"
+        else:
+            val = "-".join(
+                sorted(
+                    f"{file}:{self.mtime(file)}"
+                    for file in glob.glob(self.artifact_uuid, recursive=True)
+                )
+            )
+
+            if not val:
+                val = f"{self.artifact_uuid}:none"
+
+            return val
 
 
 @dataclasses.dataclass
@@ -140,7 +150,7 @@ class Task(Obj):
     def artifacts(self):
         # Output can be modified after __post_init__. Dynamically include those artifacts here
         return (
-            self._artifacts | {output._artifact_uuid: output for output in self.output}
+            self._artifacts | {output.artifact_uuid: output for output in self.output}
         ).values()
 
     @property
@@ -201,7 +211,7 @@ class Task(Obj):
     @property
     def build_hash(self):
         return footing.utils.hash128(
-            self.obj_hash + "".join(artifact.obj_hash for artifact in self.artifacts)
+            self.obj_hash + "".join(sorted(artifact.obj_hash for artifact in self.artifacts))
         )
 
     @property
@@ -221,4 +231,7 @@ class Task(Obj):
 
     @property
     def is_cached(self):
-        return self.build_cache_file.exists() if self.is_cacheable else False
+        if footing.ctx.get().cache:
+            return self.build_cache_file.exists() if self.is_cacheable else False
+        else:
+            return False

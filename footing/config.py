@@ -164,13 +164,13 @@ class task(Lazy):
     def input(self):
         input = self._input or []
         input = [input] if not isinstance(input, (list, tuple)) else input
-        return [_core().Path(path=val) if isinstance(val, str) else val for val in input]
+        return [_core().Path(val) if isinstance(val, str) else val for val in input]
 
     @property
     def output(self):
         output = self._output or []
         output = [output] if not isinstance(output, (list, tuple)) else output
-        return [_core().Path(path=val) if isinstance(val, str) else val for val in output]
+        return [_core().Path(val) if isinstance(val, str) else val for val in output]
 
     @property
     def cmd(self):

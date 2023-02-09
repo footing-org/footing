@@ -15,7 +15,8 @@ tk = tools.toolkit("python==3.11", poetry.bin / "poetry install", input=lock)
 # Tasks
 fmt = black / "black ."
 
-# _poetry = tools_m.Toolkit([tools_m.Install(packages=["poetry==1.3.0", "python==3.11"])])
+# Artifacts
+wheel = footing.task(poetry / "sh build.sh", input="**", output="*.whl")
 
 """
 lock = core_m.Task(

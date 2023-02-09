@@ -48,7 +48,7 @@ class Toolkit(footing.core.Task):
                 " Try shortening your toolkit name."
             )
 
-        self.output += [footing.core.Path(path=str(self.conda_env_path))]
+        self.output += [footing.core.Path(str(self.conda_env_path))]
 
     @property
     def conda_env_name(self):
