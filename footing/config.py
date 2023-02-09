@@ -73,7 +73,16 @@ def registry():
 
 
 def lazy_eval(obj):
-    return obj() if isinstance(obj, Lazy) else obj
+    if isinstance(obj, Lazy):
+        return obj()
+    elif isinstance(obj, list):
+        return [lazy_eval(val) for val in obj]
+    elif isinstance(obj, tuple):
+        return tuple(lazy_eval(val) for val in obj)
+    elif isinstance(obj, dict):
+        return {key: lazy_eval(val) for key, val in obj.items()}
+    else:
+        return obj
 
 
 class Lazy(Configurable):
@@ -89,10 +98,7 @@ class Lazy(Configurable):
         return {}
 
     def __call__(self, *args, **kwargs):
-        return self.obj_class(**self.obj_kwargs)
-
-    def _lazy_eval(self, obj):
-        return lazy_eval(obj)
+        return self.obj_class(**lazy_eval(self.obj_kwargs))
 
 
 def _core():
@@ -158,26 +164,22 @@ class task(Lazy):
     def input(self):
         input = self._input or []
         input = [input] if not isinstance(input, (list, tuple)) else input
-        input = (_core().Path(path=val) if isinstance(val, str) else val for val in input)
-        return [self._lazy_eval(val) for val in input]
+        return [_core().Path(path=val) if isinstance(val, str) else val for val in input]
 
     @property
     def output(self):
         output = self._output or []
         output = [output] if not isinstance(output, (list, tuple)) else output
-        output = (_core().Path(path=val) if isinstance(val, str) else val for val in output)
-        return [self._lazy_eval(val) for val in output]
+        return [_core().Path(path=val) if isinstance(val, str) else val for val in output]
 
     @property
     def cmd(self):
-        return [self._lazy_eval(val) for val in self._cmd]
+        return self._cmd
 
     @property
     def deps(self):
-        deps = self._deps or []
-        return [self._lazy_eval(val) for val in deps]
+        return self._deps
 
     @property
     def ctx(self):
-        ctx = self._ctx or []
-        return [self._lazy_eval(val) for val in ctx]
+        return self._ctx

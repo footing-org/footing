@@ -16,37 +16,6 @@ def _tools():  # Always do nested imports in the config module
     return footing.tools.core
 
 
-class bin(footing.config.task):
-    def __init__(self, toolkit):
-        self._toolkit = toolkit
-        super().__init__()
-
-    @property
-    def toolkit(self):
-        return self._lazy_eval(self._toolkit)
-
-    @property
-    def obj_class(self):
-        return _tools().Bin
-
-    @property
-    def obj_kwargs(self):
-        return super().obj_kwargs | {"toolkit": self.toolkit}
-
-    def compile(self, obj):
-        bin = copy.copy(self)
-        bin._cmd = bin._cmd + [obj]
-        return bin
-
-
-#
-# Task:
-#   cmd = ["pytest"]
-#
-
-# Bin:
-#   cmd = [Callable(self.bin, "pytest")]
-#   deps = [Task]
 class toolkit(footing.config.task):
     @property
     def obj_class(self):
@@ -77,3 +46,22 @@ class toolkit(footing.config.task):
     @property
     def bin(self):
         return bin(self)
+
+
+class bin(footing.config.task):
+    def __init__(self, toolkit):
+        self._toolkit = toolkit
+        super().__init__()
+
+    @property
+    def obj_class(self):
+        return _tools().Bin
+
+    @property
+    def obj_kwargs(self):
+        return super().obj_kwargs | {"toolkit": self._toolkit}
+
+    def compile(self, obj):
+        bin = copy.copy(self)
+        bin._cmd = bin._cmd + [obj]
+        return bin
