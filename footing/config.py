@@ -2,6 +2,7 @@ import contextlib
 import dataclasses
 import importlib
 import importlib.util
+import re
 import sys
 
 
@@ -76,6 +77,59 @@ def obj(name):
 @ensure_loaded()
 def registry():
     return _registry
+
+
+class Token:
+    """Tokenized part of a compilation string"""
+
+    def __init__(self, val):
+        self._val = val
+
+    def __str__(self):
+        return self._val
+
+    def __call__(self):
+        # Interpret the token as a footing object
+        parts = self._val.split(".")
+        loaded = obj(parts[0])
+
+        if not loaded:
+            raise ValueError(f'Could not load object "{parts[0]}"')
+
+        for part in parts[1:]:
+            loaded = getattr(loaded, part)
+
+        return loaded
+
+
+def compile(expr):
+    """Compile a command string into a task"""
+    enter_parts = expr.split("/")
+    compiled_parts = []
+
+    for i, enter_part in enumerate(enter_parts):
+        compiled_part = enter_part
+
+        if i == 0 or not re.match(r"^\w", enter_parts[i - 1]):
+            sub_parts = enter_part.split(".")
+
+            compiled_part = obj(sub_parts[0])
+            if not compiled_part:
+                raise ValueError(f'Task does not exist - "{sub_parts[0]}"')
+
+            for sub_part in sub_parts[1:]:
+                compiled_part = getattr(compiled_part, sub_part)
+        elif i != len(enter_parts) - 1:
+            # If this case happens, a string came after another string
+            raise ValueError("Invalid task defintion")
+
+        compiled_parts.append(compiled_part)
+
+    compiled = compiled_parts[0]
+    for compiled_part in compiled_parts[1:]:
+        compiled /= compiled_part
+
+    return compiled
 
 
 def lazy_eval(obj):

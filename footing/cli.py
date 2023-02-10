@@ -99,7 +99,7 @@ def add_obj_parser(obj, parser, subparsers=None):
     obj_parser.add_subparsers(dest="subcommand", required=False)
 
 
-def add_command_parser(command, parser):
+def add_command_parser(parser):
     parser.add_argument("command", nargs=argparse.REMAINDER)
 
 
@@ -113,19 +113,14 @@ def add_all_parsers(parser, subparsers=None):
         add_obj_parser(obj, parser, subparsers)
 
 
-def call_command(command, subcommand, kwargs):
-    """Constructs a command and calls it"""
-    eval(f"({command})()()", {}, footing.config.registry())
-
-
-def get_obj(command):
+def get_obj(name):
     """
     Get a footing object based on the command name.
 
     Footing objects are only returned if they are registered
     """
     try:
-        if obj := footing.config.obj(command):
+        if obj := footing.config.obj(name):
             return obj
     except FileNotFoundError:
         return None
@@ -144,27 +139,23 @@ def main():
     parser.add_argument("-d", "--debug", action="store_true", dest="_footing_ctx_debug")
     parser.add_argument("-f", "--no-cache", action="store_true", dest="_footing_ctx_no_cache")
 
-    # Parse the main expression, which might be objects or a subcommnad
-    expr = ""
+    # Parse the main expression, which might be objects or a subcommand
+    command = None
     for i, arg in enumerate(sys.argv[1:]):
         if not arg.startswith("-"):
-            expr = " ".join(sys.argv[i + 1 :])
+            command = arg
             break
 
     # Construct a proper CLI parser based on the command or footing obj
-    # TODO: Don't try to load objects this early. Check for main commands
-    # first before loading a config file
-    obj_name = expr.split("/")[0].split(".")[0].split(" ")[0]
-    obj = get_obj(obj_name)
-    match obj_name:
+    match command:
         case "self":
             add_self_parser(parser)
         case "shell":
             add_shell_parser(parser)
-        case command if obj:
-            add_command_parser(expr, parser)
-        case other:
+        case None:
             add_all_parsers(parser)
+        case _:
+            add_command_parser(parser)
 
     kwargs = vars(parser.parse_args())
     command = kwargs.pop("command")
@@ -178,7 +169,7 @@ def main():
                 footing_module = importlib.import_module(f"footing.{command}")
                 getattr(footing_module, subcommand)(**kwargs)
             else:
-                call_command(" ".join(command), subcommand, kwargs)
+                footing.config.compile(" ".join(command))()()
         except Exception as exc:
             if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
                 msg = exc.stderr.decode("utf8").strip()
