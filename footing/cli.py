@@ -3,6 +3,7 @@
 import argparse
 import importlib
 import os
+import shlex
 import subprocess
 import sys
 import traceback
@@ -63,7 +64,9 @@ def confirm_prompt(question: str, default: str = None, color: str = None) -> boo
     return reply == "y"
 
 
-def add_self_parser(subparsers):
+def add_self_parser(parser, subparsers=None):
+    subparsers = subparsers or parser.add_subparsers(dest="command", required=True)
+
     self_parser = subparsers.add_parser("self")
     self_subparsers = self_parser.add_subparsers(dest="subcommand", required=True)
     self_init_parser = self_subparsers.add_parser("init")
@@ -80,46 +83,39 @@ def add_self_parser(subparsers):
     )
 
 
-def add_shell_parser(subparsers):
+def add_shell_parser(parser, subparsers=None):
+    subparsers = subparsers or parser.add_subparsers(dest="command", required=True)
+
     shell_parser = subparsers.add_parser("shell")
     shell_subparsers = shell_parser.add_subparsers(dest="subcommand", required=True)
     shell_init_parser = shell_subparsers.add_parser("init")
     shell_init_parser.add_argument("-s", "--shell")
 
 
-def add_obj_parser(subparsers, obj):
+def add_obj_parser(obj, parser, subparsers=None):
+    subparsers = subparsers or parser.add_subparsers(dest="command", required=True)
+
     obj_parser = subparsers.add_parser(obj.config_name)
     obj_parser.add_subparsers(dest="subcommand", required=False)
 
 
-def add_exe_parser(subparsers, obj, slash):
-    entry = obj.cli
-    if not entry or "/" not in entry:
-        return
-
-    obj_parser = subparsers.add_parser(f"{obj.config_name}/{slash}")
-    obj_parser.add_argument("args", nargs=argparse.REMAINDER)
+def add_command_parser(command, parser):
+    parser.add_argument("command", nargs=argparse.REMAINDER)
 
 
-def add_all_parsers(subparsers):
-    add_self_parser(subparsers)
-    add_shell_parser(subparsers)
+def add_all_parsers(parser, subparsers=None):
+    subparsers = subparsers or parser.add_subparsers(dest="command", required=True)
+
+    add_self_parser(parser, subparsers)
+    add_shell_parser(parser, subparsers)
 
     for obj in footing.config.registry().values():
-        add_obj_parser(subparsers, obj)
+        add_obj_parser(obj, parser, subparsers)
 
 
-def call_obj_entry(command, subcommand, kwargs):
-    """Loads objects and calls them"""
-    assert subcommand == "main"
-    obj = footing.config.obj(command)
-
-    if isinstance(obj, footing.config.Lazy):
-        # This object is lazy loaded
-        obj = obj()
-
-    # Call the object
-    obj()
+def call_command(command, subcommand, kwargs):
+    """Constructs a command and calls it"""
+    eval(f"({command})()()", {}, footing.config.registry())
 
 
 def get_obj(command):
@@ -147,51 +143,32 @@ def main():
     # in order to not collide with other dynamic commands
     parser.add_argument("-d", "--debug", action="store_true", dest="_footing_ctx_debug")
     parser.add_argument("-f", "--no-cache", action="store_true", dest="_footing_ctx_no_cache")
-    subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # Figure out which command was called and also keep track of the
-    # position of the command relative to sys.argv. This is because
-    # we will need to do some special parsing later for slash commands
-    command = None
-    command_i = 0
+    # Parse the main expression, which might be objects or a subcommnad
+    expr = ""
     for i, arg in enumerate(sys.argv[1:]):
         if not arg.startswith("-"):
-            command = arg
-            command_i = i + 1
+            expr = " ".join(sys.argv[i + 1 :])
             break
-
-    # If a "/" is found after an object, this exposes a different
-    # interface.
-    exe = None
-    slash = command is not None and "/" in command
-    if slash:
-        command, exe = command.split("/", 1)
-
-    # We'll need to parse args slightly differently
-    # to delegate to other executables when using slash notation
-    args_to_parse = sys.argv[1:]
-    if slash:
-        args_to_parse = sys.argv[1 : command_i + 1]
 
     # Construct a proper CLI parser based on the command or footing obj
     # TODO: Don't try to load objects this early. Check for main commands
     # first before loading a config file
-    obj = get_obj(command)
-    match command:
+    obj_name = expr.split("/")[0].split(".")[0].split(" ")[0]
+    obj = get_obj(obj_name)
+    match obj_name:
         case "self":
-            add_self_parser(subparsers)
+            add_self_parser(parser)
         case "shell":
-            add_shell_parser(subparsers)
-        case command if obj and not slash:
-            add_obj_parser(subparsers, obj)
-        case command if obj and slash:
-            add_exe_parser(subparsers, obj, exe)
+            add_shell_parser(parser)
+        case command if obj:
+            add_command_parser(expr, parser)
         case other:
-            add_all_parsers(subparsers)
+            add_all_parsers(parser)
 
-    kwargs = vars(parser.parse_args(args_to_parse))
-    kwargs.pop("command")
-    subcommand = kwargs.pop("subcommand", "/" if slash else None) or "main"
+    kwargs = vars(parser.parse_args())
+    command = kwargs.pop("command")
+    subcommand = kwargs.pop("subcommand", None)
 
     with footing.ctx.set(
         cache=not kwargs.pop("_footing_ctx_no_cache"), debug=kwargs.pop("_footing_ctx_debug")
@@ -200,12 +177,8 @@ def main():
             if command in ("self", "shell"):
                 footing_module = importlib.import_module(f"footing.{command}")
                 getattr(footing_module, subcommand)(**kwargs)
-            elif slash:
-                call_obj_entry(
-                    command, subcommand, {"exe": exe, "args": sys.argv[command_i + 1 :]}
-                )
             else:
-                call_obj_entry(command, subcommand, kwargs)
+                call_command(" ".join(command), subcommand, kwargs)
         except Exception as exc:
             if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
                 msg = exc.stderr.decode("utf8").strip()

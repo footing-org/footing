@@ -17,6 +17,9 @@ import footing.ext
 import footing.utils
 
 
+K8S_RUNNER_ENV_VAR = "FOOTING_K8S_RUNNER"
+
+
 @functools.cache
 def rsync_bin():
     return footing.ext.bin("rsync")
@@ -170,7 +173,7 @@ def default_runner_service():
         image="footingorg/runner:latest",
         name="runner",
         image_pull_policy="Always",
-        env=[Env(name="FOOTING_IS_REMOTE", value="True")],
+        env=[Env(name=K8S_RUNNER_ENV_VAR, value="True")],
     )
 
 
@@ -192,15 +195,15 @@ class Run(footing.core.Task):
 
     def __post_init__(self):
         self.cmd += [footing.core.Callable(self.run)]
-        if not self.is_remote:
+        if not self.is_k8s_runner:
             self.deps += [self.pod]
 
     @property
-    def is_remote(self):
-        return "FOOTING_IS_REMOTE" in os.environ
+    def is_k8s_runner(self):
+        return K8S_RUNNER_ENV_VAR in os.environ
 
     def run(self):
-        if not self.is_remote:
+        if not self.is_k8s_runner:
             rsync_flags = '-aur --blocking-io --include="**.gitignore" --exclude="/.git" --filter=":- .gitignore" --delete-after --rsync-path='
             rsh = f'--rsh="{kubectl_bin()} exec -c {self.pod.default_exec_service} {self.pod.resource_name} -i -- "'
 

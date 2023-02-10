@@ -1,4 +1,3 @@
-import contextlib
 import os
 import pathlib
 import platform
@@ -54,31 +53,6 @@ def footing_path():
     return bin_path("footing")
 
 
-@contextlib.contextmanager
-def patch_env(env):
-    _environ = dict(os.environ)  # or os.environ.copy()
-    try:
-        os.environ.update(env)
-        yield
-    finally:
-        os.environ.clear()
-        os.environ.update(_environ)
-
-
-@contextlib.contextmanager
-def patch_conda_env(prefix, isolate=False):
-    prefix = pathlib.Path(prefix)
-    add_path = "/usr/bin:/usr/local/bin" if isolate else os.environ.get("PATH", "")
-    with patch_env(
-        {
-            "PATH": f"{prefix / 'bin'}:{add_path}",
-            "CONDA_PREFIX": str(prefix),
-            "CONDA_DEFAULT_ENV": str(prefix.name),
-        }
-    ):
-        yield
-
-
 def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
     """Runs a subprocess shell with check=True by default"""
     if env or footing.ctx.get().env:
@@ -118,41 +92,6 @@ def conda_cmd(cmd, *, quiet=False):
     """Run a conda command"""
     quiet = " -q" if quiet else ""
     return run(f"{conda_exe()}{quiet} {cmd}")
-
-
-def conda_run(cmd, *, quiet=False, name=None, prefix=None, cwd=None):
-    """Run within an env"""
-    conda_exe_str = conda_exe()
-
-    if not cmd.startswith(conda_exe_str):
-        # The old way of using micromamba run...
-        # This method suffers from performance issues, and it's not clear
-        # what exactly it offers other than changing PATH
-        # name = f" -n {name}" if name else ""
-        # prefix = f" -p {prefix}" if prefix else ""
-        # quiet = f" -q" if quiet else ""
-        # return run(f"{conda_exe_str} run{name}{prefix}{quiet} {cmd}", cwd=cwd)
-
-        if not prefix and name:
-            prefix = conda_root_path() / "envs" / name
-
-        if prefix:
-            prefix = pathlib.Path(prefix)
-            env = {
-                # TODO: Determine if we should use different isolation levels. Currently we default
-                # to the most isolated level
-                "PATH": f"{prefix / 'bin'}:/bin:/usr/bin",
-                "CONDA_PREFIX": str(prefix),
-                "CONDA_DEFAULT_ENV": str(prefix.name),
-            }
-        else:
-            env = None
-        return run(cmd, cwd=cwd, env=env)
-    else:
-        name = f" -n {name}" if name else ""
-        prefix = f" -p {prefix}" if prefix else ""
-        quiet = f" -q" if quiet else ""
-        return run(f"{cmd}{name}{prefix}{quiet}", cwd=cwd)
 
 
 def detect_shell():
