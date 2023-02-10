@@ -79,29 +79,6 @@ def registry():
     return _registry
 
 
-class Token:
-    """Tokenized part of a compilation string"""
-
-    def __init__(self, val):
-        self._val = val
-
-    def __str__(self):
-        return self._val
-
-    def __call__(self):
-        # Interpret the token as a footing object
-        parts = self._val.split(".")
-        loaded = obj(parts[0])
-
-        if not loaded:
-            raise ValueError(f'Could not load object "{parts[0]}"')
-
-        for part in parts[1:]:
-            loaded = getattr(loaded, part)
-
-        return loaded
-
-
 def compile(expr):
     """Compile a command string into a task"""
     enter_parts = expr.split("/")
@@ -145,7 +122,7 @@ def lazy_eval(obj):
         return obj
 
 
-class Lazy(Configurable):
+class Lazy:
     @property
     def obj_class(self):
         raise NotImplementedError
@@ -166,7 +143,7 @@ class Enterable:
         raise NotImplementedError
 
 
-class enter(Lazy):
+class enter(Lazy, Configurable):
     """Enter a list of objects"""
 
     def __init__(self, *objs):
@@ -179,17 +156,17 @@ class enter(Lazy):
     def __call__(self, *args, **kwargs):
         assert self._objs
 
-        # Always start with a new task that can be modified during Lazy.enter()
-        compiled = task(self._objs[-1])
-
+        entered = self._objs[-1]
         for val in reversed(self._objs[:-1]):
-            val = task(val) if isinstance(val, str) else val
-            compiled = val.enter(compiled)
+            if not isinstance(val, Enterable):
+                raise TypeError(f"unsupported operand type for /: '{type(val)}'")
 
-        return compiled(*args, **kwargs)
+            entered = val.enter(entered)
+
+        return entered(*args, **kwargs)
 
 
-class task(Lazy, Enterable):
+class Task(Lazy, Configurable):
     def __init__(self, *cmd, input=None, output=None):
         self._cmd = list(cmd)
         self._input = input
@@ -212,10 +189,6 @@ class task(Lazy, Enterable):
             "deps": self.deps,
         }
 
-    def enter(self, obj):
-        obj._ctx.append(self)
-        return obj
-
     @property
     def input(self):
         input = self._input or []
@@ -229,13 +202,48 @@ class task(Lazy, Enterable):
         return [_core().Path(val) if isinstance(val, str) else val for val in output]
 
     @property
-    def cmd(self):
-        return self._cmd
+    def ctx(self):
+        return self._ctx
 
     @property
     def deps(self):
         return self._deps
 
     @property
-    def ctx(self):
-        return self._ctx
+    def cmd(self):
+        return self._cmd
+
+
+class Shell(Task):
+    def __init__(self, *cmd, input=None, output=None, entry=False):
+        super().__init__(*cmd, input=input, output=output)
+        self._entry = entry
+
+    @property
+    def obj_class(self):
+        return _core().Shell
+
+    @property
+    def obj_kwargs(self):
+        return super().obj_kwargs | {"entry": self.entry}
+
+    @property
+    def entry(self):
+        return self._entry
+
+
+class sh(Shell):
+    pass
+
+
+class Runner(Task, Enterable):
+    def enter(self, val):
+        if not isinstance(val, Task):
+            raise TypeError(f"unsupported operand type for /: '{type(val)}'")
+
+        val._ctx.append(self)
+        return val
+
+    def sh(self, *cmd, input=None, output=None, entry=False):
+        # TODO: Run a shell when there are no tasks
+        return self.enter(Shell(*cmd, input=input, output=output, entry=entry))

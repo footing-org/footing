@@ -4,11 +4,13 @@ import glob
 import itertools
 import os
 import re
+import shlex
 import typing
 
 import orjson
 
 import footing.config
+import footing.ctx
 import footing.utils
 
 
@@ -87,19 +89,19 @@ class Obj(footing.config.Configurable):
 
 
 @dataclasses.dataclass
-class Callable:
+class Lazy:
     """A serializable lazy callable for functions"""
 
-    _callable: typing.Callable
+    _obj: typing.Callable
     _args: typing.List[typing.Any] = dataclasses.field(default_factory=list)
     _kwargs: typing.Dict[str, typing.Any] = dataclasses.field(default_factory=dict)
 
     def __call__(self):
-        return self._callable(*self._args, **self._kwargs)
+        return self._obj(*self._args, **self._kwargs)
 
     def __enter__(self):
         if hasattr(self, "_cm"):
-            raise RuntimeError("Callable is not re-entrant")
+            raise RuntimeError(f"{self} is not re-entrant")
 
         self._cm = self()
         return self._cm.__enter__()
@@ -110,41 +112,29 @@ class Callable:
 
 
 @dataclasses.dataclass
-class Shell(Callable):
-    """A serialized lazy callable treated as a shell command"""
+class Cmd:
+    cmd: str
+    entry: bool = False
 
+    def __post_init__(self):
+        self.cmd = str(self.cmd)
 
-def call(cmd):
-    if isinstance(cmd, Shell):
-        cmd = cmd()
+    def __str__(self):
+        cmd = self.cmd
+        if self.entry and footing.ctx.get().subcommand:
+            extra = shlex.join(footing.ctx.get().subcommand)
+            cmd += f" {extra}"
 
-    if isinstance(cmd, str):
-        footing.cli.pprint(cmd.removeprefix(footing.utils.conda_exe() + " "))
-
-    if isinstance(cmd, str):
-        footing.utils.run(cmd)
-    elif callable(cmd):
-        cmd()
-    else:
-        raise ValueError(f'Invalid command - "{cmd}"')
+        return cmd
 
 
 @dataclasses.dataclass
 class Task(Obj):
-    cmd: typing.List[typing.Union[str, "Task", Callable]] = dataclasses.field(default_factory=list)
+    cmd: typing.List[typing.Union[str, "Task", Lazy]] = dataclasses.field(default_factory=list)
     input: typing.List[typing.Union["Task", Artifact]] = dataclasses.field(default_factory=list)
     output: typing.List[Artifact] = dataclasses.field(default_factory=list)
-    ctx: typing.List[typing.Union["Task", Callable]] = dataclasses.field(default_factory=list)
+    ctx: typing.List[typing.Union["Task", Lazy]] = dataclasses.field(default_factory=list)
     deps: typing.List["Task"] = dataclasses.field(default_factory=list)
-
-    @property
-    def leaf_cmd(self):
-        """Iterate over the leaf commands"""
-        for cmd in self.cmd:
-            if isinstance(cmd, Task):
-                yield from cmd.leaf_cmd
-            else:
-                yield cmd
 
     @property
     def artifacts(self):
@@ -185,6 +175,27 @@ class Task(Obj):
         """Main implementation for the slash operator"""
         return Task(cmd=[obj], ctx=[self])
 
+    def exec(self, cmd):
+        """Main implementation for executing a command"""
+        if isinstance(cmd, Lazy):
+            cmd = cmd()
+
+            # If the lazy object doesn't return a Cmd, we're done
+            # running
+            if not isinstance(cmd, Cmd):
+                return
+
+        if isinstance(cmd, Cmd):
+            cmd = str(cmd)
+
+        if isinstance(cmd, str):
+            footing.cli.pprint(cmd.removeprefix(footing.utils.conda_exe() + " "))
+            footing.utils.run(cmd)
+        elif callable(cmd):
+            cmd()
+        else:
+            raise RuntimeError(f'Invalid command - "{cmd}"')
+
     def call(self):
         """Main implementation for calling object"""
         if self.is_cached:
@@ -196,7 +207,7 @@ class Task(Obj):
 
             for cmd in itertools.chain(self.deps, self.ctx, self.input, self.cmd):
                 if not isinstance(cmd, Artifact):
-                    call(cmd)
+                    self.exec(cmd)
 
         self.cache()
 
@@ -235,3 +246,25 @@ class Task(Obj):
             return self.build_cache_file.exists() if self.is_cacheable else False
         else:
             return False
+
+
+@dataclasses.dataclass
+class Shell(Task):
+    """Runs a shell if there are no commands.
+
+    If entry=True, last command will be executed as entrypoint
+    """
+
+    entry: bool = False
+
+    def __post_init__(self):
+        if not self.cmd:
+            self.cmd.append(Lazy(self.shell_cmd))
+
+        if self.entry:
+            self.cmd[-1] = Cmd(self.cmd[-1], entry=True)
+
+        super().__post_init__()
+
+    def shell_cmd(self):
+        return Cmd(footing.utils.detect_shell()[1] or "bash")

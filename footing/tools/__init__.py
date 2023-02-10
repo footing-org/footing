@@ -1,13 +1,5 @@
 """Core configuration for tools"""
-import copy
-
 import footing.config
-
-
-def _core():  # Always do nested imports in the config module
-    import footing.core
-
-    return footing.core
 
 
 def _tools():  # Always do nested imports in the config module
@@ -16,7 +8,7 @@ def _tools():  # Always do nested imports in the config module
     return footing.tools.core
 
 
-class toolkit(footing.config.task):
+class toolkit(footing.config.Runner):
     @property
     def obj_class(self):
         return _tools().Toolkit
@@ -43,15 +35,17 @@ class toolkit(footing.config.task):
             for val in cmd
         ]
 
-    @property
-    def bin(self):
-        return bin(self)
+    def bin(self, *tasks, input=None, output=None):
+        for task in tasks:
+            if not isinstance(task, str):
+                raise TypeError(f'bin task "{task}" is not a string')
+        return bin(self, *tasks, input=input, output=output)
 
 
-class bin(footing.config.task):
-    def __init__(self, toolkit):
+class bin(footing.config.Task):
+    def __init__(self, toolkit, *cmd, input=None, output=None):
         self._toolkit = toolkit
-        super().__init__()
+        super().__init__(*cmd, input=input, output=output)
 
     @property
     def obj_class(self):
@@ -60,8 +54,3 @@ class bin(footing.config.task):
     @property
     def obj_kwargs(self):
         return super().obj_kwargs | {"toolkit": self._toolkit}
-
-    def enter(self, obj):
-        bin = copy.copy(self)
-        bin._cmd = bin._cmd + [obj]
-        return bin

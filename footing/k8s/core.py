@@ -103,7 +103,7 @@ class Pod(footing.core.Task):
     spec: typing.Union[str, dict] = None
 
     def __post_init__(self):
-        self.cmd += [footing.core.Callable(self.create)]
+        self.cmd += [footing.core.Lazy(self.create)]
 
         if not self.spec or isinstance(self.spec, dict):
             spec = self.spec or {
@@ -119,16 +119,6 @@ class Pod(footing.core.Task):
     @property
     def is_cacheable(self):
         return True
-
-    @contextlib.contextmanager
-    def enter(self):
-        if not self.config_name:
-            raise RuntimeError(
-                "Pods must be named to use as remote runners. Assign it to a variable."
-            )
-
-        with footing.ctx.set(runner=self.name):
-            yield
 
     @property
     def containers(self):
@@ -194,7 +184,7 @@ class Run(footing.core.Task):
     task: footing.core.Task
 
     def __post_init__(self):
-        self.cmd += [footing.core.Callable(self.run)]
+        self.cmd += [footing.core.Lazy(self.run)]
         if not self.is_k8s_runner:
             self.deps += [self.pod]
 
@@ -214,7 +204,6 @@ class Run(footing.core.Task):
                 f"bash -c '{local_cmd}' && "
                 f"{kubectl_bin()} exec --stdin --tty -c {self.pod.default_exec_service} {self.pod.resource_name} -- bash -c '{remote_cmd}'"
             )
-            footing.cli.pprint("provisioning")
             footing.utils.run(cmd, stderr=subprocess.PIPE)
         else:
             self.task()

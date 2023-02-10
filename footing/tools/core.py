@@ -28,8 +28,8 @@ class Toolkit(footing.core.Task):
     def __post_init__(self):
         self.conda_env_root = self.conda_env_root or str(footing.utils.conda_root_path() / "envs")
         self.platform = self.platform or footing.utils.detect_platform()
-        self.deps += [footing.core.Callable(self._create_conda_env)]
-        self.ctx += [footing.core.Callable(self.enter)]
+        self.deps += [footing.core.Lazy(self._create_conda_env)]
+        self.ctx += [footing.core.Lazy(self.enter)]
 
         # TODO: Set the project path in the runtime context so that we can re-used toolkits for the same
         # projects in different directories
@@ -86,12 +86,14 @@ class Bin(footing.core.Task):
     def __post_init__(self):
         self.deps += [self.toolkit]
         if self.cmd:
-            self.cmd = [footing.core.Shell(self.bin_cmd, [cmd]) for cmd in self.leaf_cmd]
+            self.cmd = [footing.core.Lazy(self.bin_cmd, [cmd]) for cmd in self.cmd]
         else:
-            self.cmd += [footing.core.Shell(self.bin_ls)]
+            self.cmd += [footing.core.Lazy(self.bin_ls)]
+
+        super().__post_init__()
 
     def bin_cmd(self, cmd):
-        return str(self.toolkit.conda_env_path / "bin" / cmd)
+        return footing.core.Cmd(self.toolkit.conda_env_path / "bin" / cmd)
 
     def bin_ls(self):
-        return f"ls {self.toolkit.conda_env_path / 'bin'}"
+        return footing.core.Cmd(f"ls {self.toolkit.conda_env_path / 'bin'}")

@@ -100,7 +100,8 @@ def add_obj_parser(obj, parser, subparsers=None):
 
 
 def add_command_parser(parser):
-    parser.add_argument("command", nargs=argparse.REMAINDER)
+    parser.add_argument("command")
+    parser.add_argument("subcommand", nargs=argparse.REMAINDER)
 
 
 def add_all_parsers(parser, subparsers=None):
@@ -158,18 +159,20 @@ def main():
             add_command_parser(parser)
 
     kwargs = vars(parser.parse_args())
-    command = kwargs.pop("command")
-    subcommand = kwargs.pop("subcommand", None)
 
     with footing.ctx.set(
-        cache=not kwargs.pop("_footing_ctx_no_cache"), debug=kwargs.pop("_footing_ctx_debug")
+        cache=not kwargs.pop("_footing_ctx_no_cache"),
+        debug=kwargs.pop("_footing_ctx_debug"),
+        command=kwargs.pop("command"),
+        subcommand=kwargs.pop("subcommand", None),
     ):
+        ctx = footing.ctx.get()
         try:
-            if command in ("self", "shell"):
-                footing_module = importlib.import_module(f"footing.{command}")
-                getattr(footing_module, subcommand)(**kwargs)
+            if ctx.command in ("self", "shell"):
+                footing_module = importlib.import_module(f"footing.{ctx.command}")
+                getattr(footing_module, ctx.subcommand)(**kwargs)
             else:
-                footing.config.compile(" ".join(command))()()
+                footing.config.compile(ctx.command)()()
         except Exception as exc:
             if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
                 msg = exc.stderr.decode("utf8").strip()
@@ -179,7 +182,7 @@ def main():
             msg = msg or "An unexpected error occurred"
 
             pprint(msg, color="red")
-            if footing.ctx.get().debug:
+            if ctx.debug:
                 print(traceback.format_exc().strip())
 
             sys.exit(1)

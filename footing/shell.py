@@ -2,7 +2,7 @@ import footing.utils
 
 
 def init(shell=None):
-    shell = shell or footing.utils.detect_shell()
+    shell = shell or footing.utils.detect_shell()[0]
     if not shell:
         raise RuntimeError("Could not detect shell. Use --shell argument")
 

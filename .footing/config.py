@@ -6,33 +6,33 @@ tools, k8s = footing.module("tools", "k8s")
 # Toolkits
 black = tools.toolkit("black==22.12.0", "python==3.11")
 poetry = tools.toolkit("poetry==1.3.0", "python==3.11")
-lock = footing.task(
-    poetry / "poetry lock --no-update", input="pyproject.toml", output="poetry.lock"
+lock = footing.sh(
+    poetry.sh("poetry lock --no-update"), input="pyproject.toml", output="poetry.lock"
 )
-tk = tools.toolkit("python==3.11", poetry.bin / "poetry install", input=lock)
+tk = tools.toolkit("python==3.11", poetry.bin("poetry install", input=lock))
 
 # Tasks
-fmt = black / "black ."
+fmt = black.sh("black .", entry=True)
 
 # Artifacts
-wheel = footing.task(poetry / "sh build.sh", input="**", output="*.whl")
-docker_core = footing.task(
+wheel = footing.sh(poetry.sh("sh build.sh"), input="**", output="*.whl")
+docker_core = footing.sh(
     "docker buildx build -f docker/core/Dockerfile -t footingorg/core --platform linux/arm64/v8 . --push",
     input=[wheel, "docker/core/*"],
 )
-docker_footing = footing.task(
+docker_footing = footing.sh(
     "docker buildx build -f docker/footing/Dockerfile -t footingorg/footing --platform linux/arm64/v8 . --push",
     input=[docker_core, "docker/footing/*"],
 )
-docker_runner = footing.task(
+docker_runner = footing.sh(
     "docker buildx build -f docker/runner/Dockerfile -t footingorg/runner --platform linux/arm64/v8 . --push",
     input=[docker_core, "docker/runner/*"],
 )
-docker_postgres = footing.task(
+docker_postgres = footing.sh(
     "docker buildx build -f dockder/postgres/Dockerfile -t footingorg/postgres:15.1 --platform linux/arm64/v8 . --push",
     input=["docker/postgres/*"],
 )
-docker_actions = footing.task(
+docker_actions = footing.sh(
     "docker buildx build -f docker/actions/Dockerfile -t footingorg/actions --platform linux/arm64/v8 . --push",
     input=[docker_core, "docker/actions/*"],
 )

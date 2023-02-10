@@ -43,7 +43,7 @@ class sleepy(service):
         return _k8s().Sleepy
 
 
-class pod(footing.config.task):
+class pod(footing.config.Runner):
     def __init__(self, *services):
         self._services = list(services)
 
@@ -63,7 +63,7 @@ class pod(footing.config.task):
         return [service(val) if isinstance(val, str) else val for val in self._services]
 
 
-class run(footing.config.task):
+class run(footing.config.Task):
     def __init__(self, pod, task):
         self._pod = pod
         self._task = task
