@@ -1,7 +1,6 @@
 import contextlib
 import copy
 import dataclasses
-import typing
 
 
 _ctx = None

@@ -2,7 +2,6 @@ import contextlib
 import dataclasses
 import importlib
 import importlib.util
-import re
 import sys
 
 
