@@ -4,7 +4,6 @@ import glob
 import itertools
 import os
 import re
-import shlex
 import typing
 
 import orjson
@@ -117,15 +116,14 @@ class Cmd:
     entry: bool = False
 
     def __post_init__(self):
-        self.cmd = str(self.cmd)
+        cmd = str(self.cmd)
+        if self.entry and footing.ctx.get().entry_add:
+            cmd += f" {footing.ctx.get().entry_add}"
+
+        self.cmd = cmd
 
     def __str__(self):
-        cmd = self.cmd
-        if self.entry and footing.ctx.get().subcommand:
-            extra = shlex.join(footing.ctx.get().subcommand)
-            cmd += f" {extra}"
-
-        return cmd
+        return self.cmd
 
 
 @dataclasses.dataclass

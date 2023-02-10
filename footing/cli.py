@@ -159,20 +159,36 @@ def main():
             add_command_parser(parser)
 
     kwargs = vars(parser.parse_args())
+    command = kwargs.pop("command")
+    subcommand = kwargs.pop("subcommand", [])
 
     with footing.ctx.set(
         cache=not kwargs.pop("_footing_ctx_no_cache"),
         debug=kwargs.pop("_footing_ctx_debug"),
-        command=kwargs.pop("command"),
-        subcommand=kwargs.pop("subcommand", None),
     ):
-        ctx = footing.ctx.get()
         try:
-            if ctx.command in ("self", "shell"):
-                footing_module = importlib.import_module(f"footing.{ctx.command}")
-                getattr(footing_module, ctx.subcommand)(**kwargs)
+            if command in ("self", "shell"):
+                footing_module = importlib.import_module(f"footing.{command}")
+                getattr(footing_module, subcommand)(**kwargs)
             else:
-                footing.config.compile(ctx.command)()()
+                obj = get_obj(command)
+                subcommand = shlex.join(subcommand)
+                entry_add = subcommand
+                if not obj:
+                    # The caller has created an expression
+                    obj = eval(command, {}, footing.config.registry())
+
+                    if hasattr(obj, "__self__") and isinstance(obj.__self__, footing.config.Task):
+                        # A bound method. Call with the subcommand to get the object
+                        if subcommand:
+                            obj = obj(subcommand)
+                            # Don't add to entrypoints since the subcommand was consumed
+                            entry_add = ""
+                        else:
+                            obj = obj()  # Call without arguments
+
+                with footing.ctx.set(entry_add=entry_add):
+                    obj()()
         except Exception as exc:
             if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
                 msg = exc.stderr.decode("utf8").strip()
@@ -182,7 +198,7 @@ def main():
             msg = msg or "An unexpected error occurred"
 
             pprint(msg, color="red")
-            if ctx.debug:
+            if footing.ctx.get().debug:
                 print(traceback.format_exc().strip())
 
             sys.exit(1)

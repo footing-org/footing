@@ -79,36 +79,6 @@ def registry():
     return _registry
 
 
-def compile(expr):
-    """Compile a command string into a task"""
-    enter_parts = expr.split("/")
-    compiled_parts = []
-
-    for i, enter_part in enumerate(enter_parts):
-        compiled_part = enter_part
-
-        if i == 0 or not re.match(r"^\w", enter_parts[i - 1]):
-            sub_parts = enter_part.split(".")
-
-            compiled_part = obj(sub_parts[0])
-            if not compiled_part:
-                raise ValueError(f'Task does not exist - "{sub_parts[0]}"')
-
-            for sub_part in sub_parts[1:]:
-                compiled_part = getattr(compiled_part, sub_part)
-        elif i != len(enter_parts) - 1:
-            # If this case happens, a string came after another string
-            raise ValueError("Invalid task defintion")
-
-        compiled_parts.append(compiled_part)
-
-    compiled = compiled_parts[0]
-    for compiled_part in compiled_parts[1:]:
-        compiled /= compiled_part
-
-    return compiled
-
-
 def lazy_eval(obj):
     if isinstance(obj, Lazy):
         return obj()
@@ -133,37 +103,6 @@ class Lazy:
 
     def __call__(self, *args, **kwargs):
         return self.obj_class(**lazy_eval(self.obj_kwargs))
-
-
-class Enterable:
-    def __truediv__(self, obj):
-        return enter(self) / obj
-
-    def enter(self, obj):
-        raise NotImplementedError
-
-
-class enter(Lazy, Configurable):
-    """Enter a list of objects"""
-
-    def __init__(self, *objs):
-        self._objs = list(objs)
-
-    def __truediv__(self, obj):
-        self._objs.append(obj)
-        return self
-
-    def __call__(self, *args, **kwargs):
-        assert self._objs
-
-        entered = self._objs[-1]
-        for val in reversed(self._objs[:-1]):
-            if not isinstance(val, Enterable):
-                raise TypeError(f"unsupported operand type for /: '{type(val)}'")
-
-            entered = val.enter(entered)
-
-        return entered(*args, **kwargs)
 
 
 class Task(Lazy, Configurable):
@@ -234,6 +173,37 @@ class Shell(Task):
 
 class sh(Shell):
     pass
+
+
+class Enterable:
+    def __truediv__(self, obj):
+        return enter(self) / obj
+
+    def enter(self, obj):
+        raise NotImplementedError
+
+
+class enter(Lazy, Configurable):
+    """Enter a list of objects"""
+
+    def __init__(self, *objs):
+        self._objs = list(objs)
+
+    def __truediv__(self, obj):
+        self._objs.append(obj)
+        return self
+
+    def __call__(self, *args, **kwargs):
+        assert self._objs
+
+        entered = self._objs[-1]
+        for val in reversed(self._objs[:-1]):
+            if not isinstance(val, Enterable):
+                raise TypeError(f"unsupported operand type for /: '{type(val)}'")
+
+            entered = val.enter(entered)
+
+        return entered(*args, **kwargs)
 
 
 class Runner(Task, Enterable):

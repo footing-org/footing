@@ -1,6 +1,7 @@
 import contextlib
 import copy
 import dataclasses
+import typing
 
 
 _ctx = None
@@ -12,8 +13,7 @@ class Ctx:
 
     cache: bool = True
     debug: bool = False
-    command: str = None
-    subcommand: str = None
+    entry_add: str = ""
     env: dict = dataclasses.field(default_factory=dict)
 
     def update(self, **kwargs):
