@@ -38,5 +38,5 @@ docker_actions = footing.sh(
 )
 
 # Runners
-dev_pod = k8s.runner(k8s.sleepy("ubuntu"))
+dev_pod = k8s.git_runner()
 rfmt = dev_pod / fmt

@@ -176,6 +176,35 @@ class Runner(Pod):
         super().__post_init__()
 
 
+@dataclasses.dataclass
+class GitRunner(Runner):
+    @functools.cached_property
+    def _resource_name(self):
+        # TODO: Remove this hack. It's in place for now so that remote runners will work.
+        # In the future, git context will be supplied via variables, which will be transmitted
+        # to the remote runner, alleviating the need for the GitRunner construct
+        try:
+            repo_url = (
+                footing.utils.run(
+                    "git remote get-url origin", stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                )
+                .stdout.decode("utf-8")
+                .strip()
+            )
+            branch = (
+                footing.utils.run(
+                    "git rev-parse --abbrev-ref HEAD",
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+                .stdout.decode("utf-8")
+                .strip()
+            )
+            return self._fmt_resource_name(f"{repo_url}-{branch}")
+        except Exception:
+            return super()._resource_name
+
+
 @dataclasses.dataclass(kw_only=True)
 class Run(footing.core.Task):
     """A remote pod task"""

@@ -81,3 +81,9 @@ class runner(pod):
     @property
     def obj_class(self):
         return _k8s().Runner
+
+
+class git_runner(pod):
+    @property
+    def obj_class(self):
+        return _k8s().GitRunner

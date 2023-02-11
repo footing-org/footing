@@ -1,6 +1,6 @@
 FROM footingorg/core
 
-RUN micromamba -r /footing/toolkits/ install rsync -n base -c conda-forge -y && \
+RUN micromamba -r /footing/toolkits/ install git rsync -n base -c conda-forge -y && \
     rm -rf /footing/toolkits/pkgs
 
 # Runner commands happen inside the /project dir
