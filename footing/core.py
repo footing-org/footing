@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import dataclasses
 import glob
 import itertools
@@ -67,7 +68,15 @@ class Obj(footing.config.Configurable):
     """A core footing object"""
 
     def __post_init__(self):
-        # TODO: Make post_init freeze all dataclass properties since the hash is computed here
+        self._is_initialized = True
+
+    def freeze(self):
+        """Freeze the object hash and artifacts"""
+        if not getattr(self, "_is_initialized", False):
+            raise RuntimeError(
+                "Cannot freeze object during initialization or forgot to call super() in __post_init__"
+            )
+
         serialized = orjson.dumps(self)
         self._obj_hash = footing.utils.hash128(serialized)
 
@@ -80,7 +89,17 @@ class Obj(footing.config.Configurable):
 
     @property
     def obj_hash(self):
+        if not hasattr(self, "_obj_hash"):
+            self.freeze()
+
         return self._obj_hash
+
+    @property
+    def artifacts(self):
+        if not hasattr(self, "_artifacts"):
+            self.freeze()
+
+        return self._artifacts.values()
 
     @property
     def cli(self):
@@ -134,12 +153,24 @@ class Task(Obj):
     ctx: typing.List[typing.Union["Task", Lazy]] = dataclasses.field(default_factory=list)
     deps: typing.List["Task"] = dataclasses.field(default_factory=list)
 
-    @property
-    def artifacts(self):
-        # Output can be modified after __post_init__. Dynamically include those artifacts here
-        return (
-            self._artifacts | {output.artifact_uuid: output for output in self.output}
-        ).values()
+    def __post_init__(self):
+        # When a task has multiple commands, they must reference each other as dependencies.
+        # TODO: Consider using "groups" of commands that can be ANDed or ORed together to better
+        # support this modeling. Here we do an AND
+        if len(self.cmd) > 1:
+            ref_cmd = []
+            for i, cmd in enumerate(self.cmd):
+                if i > 0:
+                    if isinstance(cmd, Task):
+                        cmd = copy.copy(cmd)
+                        cmd.deps += [self.cmd[i - 1]]
+                    else:
+                        cmd = Task(cmd=[cmd], deps=[self.cmd[i - 1]])
+
+                ref_cmd.append(cmd)
+            self.cmd = ref_cmd
+
+        super().__post_init__()
 
     @property
     def cli(self):
@@ -229,6 +260,7 @@ class Task(Obj):
 
     def cache(self):
         if self.is_cacheable:
+            self.freeze()  # Ensure the latest hash is computed when caching
             try:
                 self.build_cache_file.touch()
             except FileNotFoundError:

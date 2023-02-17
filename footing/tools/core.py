@@ -28,21 +28,16 @@ class Toolkit(footing.core.Task):
     def __post_init__(self):
         self.conda_env_root = self.conda_env_root or str(footing.utils.conda_root_path() / "envs")
         self.platform = self.platform or footing.utils.detect_platform()
-        self.deps += [footing.core.Lazy(self._create_conda_env)]
         self.ctx += [footing.core.Lazy(self.enter)]
 
         # TODO: Set the project path in the runtime context so that we can re-used toolkits for the same
         # projects in different directories
         self.project = str(pathlib.Path.cwd())
 
-        super().__post_init__()
-
         # For now, every toolkit is duplicated for each project path. In the future we will be able to
         # globally share toolkits when only standard installers (e.g. conda) are used. When non-standard
         # ones are used (e.g. poetry), we must resort to namespacing it to avoid global clashes.
-        self._conda_env_name = (
-            f"{self.config_name or self.obj_hash}-{footing.utils.hash32(self.project)}"
-        )
+        self._conda_env_name = f"{self.config_name or footing.utils.hash128(self)}-{footing.utils.hash32(self.project)}"
 
         # TODO: Find a better way to shorten environment names
         if len(str(self.conda_env_path)) > 113:
@@ -51,7 +46,13 @@ class Toolkit(footing.core.Task):
                 " Try shortening your toolkit name."
             )
 
-        self.output += [footing.core.Path(str(self.conda_env_path))]
+        artifact = footing.core.Path(str(self.conda_env_path))
+        self.output += [artifact]
+        self.cmd = [
+            footing.core.Task(cmd=[footing.core.Lazy(self._create_conda_env)], output=[artifact])
+        ] + self.cmd
+
+        super().__post_init__()
 
     @property
     def conda_env_name(self):

@@ -1,8 +1,10 @@
+import dataclasses
 import os
 import pathlib
 import platform
 import subprocess
 
+import orjson
 import shellingham
 import xxhash
 
@@ -14,10 +16,16 @@ unset = object()
 
 
 def hash32(val):
+    if dataclasses.is_dataclass(val):
+        val = orjson.dumps(val)
+
     return xxhash.xxh32_hexdigest(val)
 
 
 def hash128(val):
+    if dataclasses.is_dataclass(val):
+        val = orjson.dumps(val)
+
     return xxhash.xxh3_128_hexdigest(val)
 
 

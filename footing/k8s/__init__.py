@@ -22,11 +22,15 @@ class service(footing.config.Lazy):
     ):
         self.image = image
         self.name = name
-        self.env = env
+        self._env = env
         self.ports = ports
         self.image_pull_policy = image_pull_policy
         self.command = command
         self.args = args
+
+    @property
+    def env(self):
+        return [_k8s().Env(name=name, value=value) for name, value in self._env.items()]
 
     @property
     def obj_class(self):
@@ -34,7 +38,8 @@ class service(footing.config.Lazy):
 
     @property
     def obj_kwargs(self):
-        return self.__dict__
+        keys = (key.removeprefix("_") for key in self.__dict__.keys())
+        return {key: getattr(self, key) for key in keys}
 
 
 class sleepy(service):
@@ -44,8 +49,9 @@ class sleepy(service):
 
 
 class pod(footing.config.Runner):
-    def __init__(self, *services):
+    def __init__(self, *services, name=None):
         self._services = list(services)
+        self._name = name
 
     def enter(self, obj):
         return run(pod=self, task=obj)
@@ -56,11 +62,15 @@ class pod(footing.config.Runner):
 
     @property
     def obj_kwargs(self):
-        return {"services": self.services}
+        return {"services": self.services, "name": self.name}
 
     @property
     def services(self):
         return [service(val) if isinstance(val, str) else val for val in self._services]
+
+    @property
+    def name(self):
+        return self._name
 
 
 class run(footing.config.Task):

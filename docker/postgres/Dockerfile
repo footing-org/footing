@@ -1,4 +1,4 @@
-FROM postgres:15.1
+FROM postgres:14.7
 
 # This is performance optimization tweak to make DB faster
 RUN if [ -e /usr/local/share/postgresql/postgresql.conf.sample ]; then \

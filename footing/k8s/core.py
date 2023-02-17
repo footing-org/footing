@@ -101,6 +101,7 @@ class Sleepy(Service):
 class Pod(footing.core.Task):
     services: typing.List[Service] = dataclasses.field(default_factory=list)
     spec: typing.Union[str, dict] = None
+    name: str = None
 
     def __post_init__(self):
         self.cmd += [footing.core.Lazy(self.create)]
@@ -136,7 +137,7 @@ class Pod(footing.core.Task):
 
     @functools.cached_property
     def _resource_name(self):
-        return self._fmt_resource_name(self.config_name or "pod")
+        return self._fmt_resource_name(self.name or self.config_name or "pod")
 
     @property
     def default_exec_service(self):
