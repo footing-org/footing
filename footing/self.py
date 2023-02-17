@@ -54,6 +54,10 @@ def init(no_system=False, no_prompt=False, no_shell_integration=False):
                     f"sudo ln -sf {footing.utils.footing_path()} /usr/local/bin/footing",
                     check=True,
                 )
+                footing.utils.run(
+                    f"sudo ln -sf {footing.utils.footing_path()} /usr/local/bin/f",
+                    check=True,
+                )
                 retry_system = False
             except subprocess.CalledProcessError:
                 retry_system = footing.cli.confirm_prompt(

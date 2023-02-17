@@ -249,31 +249,31 @@ class Task(Obj):
         return self.input or self.output
 
     @property
-    def build_hash(self):
+    def run_hash(self):
         return footing.utils.hash128(
             self.obj_hash + "".join(sorted(artifact.obj_hash for artifact in self.artifacts))
         )
 
     @property
-    def build_cache_file(self):
-        return footing.utils.install_path() / "cache" / self.build_hash
+    def run_cache_file(self):
+        return footing.utils.cache_path() / "run" / self.run_hash
 
     def cache(self):
         if self.is_cacheable:
             self.freeze()  # Ensure the latest hash is computed when caching
             try:
-                self.build_cache_file.touch()
+                self.run_cache_file.touch()
             except FileNotFoundError:
-                self.build_cache_file.mkdir(parents=True, exist_ok=True)
-                self.build_cache_file.touch()
+                self.run_cache_file.mkdir(parents=True, exist_ok=True)
+                self.run_cache_file.touch()
 
     def uncache(self):
-        self.build_cache_file.unlink(missing_ok=True)
+        self.run_cache_file.unlink(missing_ok=True)
 
     @property
     def is_cached(self):
         if footing.ctx.get().cache:
-            return self.build_cache_file.exists() if self.is_cacheable else False
+            return self.run_cache_file.exists() if self.is_cacheable else False
         else:
             return False
 

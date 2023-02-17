@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
 
+footing_ver="${FOOTING_VERSION:-1.0.0}"
+footing_maj_ver=(${footing_version//./ })
 default_footing_prefix=$HOME/.footing
 footing_prefix="${PREFIX:-$default_footing_prefix}"
 mkdir -p $footing_prefix
@@ -49,12 +51,12 @@ fi
 micromamba_installer_dir=$(mktemp -d)
 micromamba_archive_file="$micromamba_installer_dir/micromamba.tar.gz"
 micromamba_installer_url="https://micro.mamba.pm/api/micromamba/$platform-$arch/latest"
-micromamba_prefix=$footing_prefix/toolkits
+micromamba_prefix=$footing_prefix/v$footing_maj_ver
 
 printf "\033[0;32mInstalling micromamba...\033[0m\\n"
 download_file $micromamba_installer_url $micromamba_archive_file
-mkdir -p $footing_prefix/toolkits/bin
-cat $micromamba_archive_file | tar -xj -C $footing_prefix/toolkits/bin --strip-components=1 bin/micromamba
+mkdir -p $micromamba_prefix/bin
+cat $micromamba_archive_file | tar -xj -C $micromamba_prefix/bin --strip-components=1 bin/micromamba
 
 ###
 # Install python
@@ -67,7 +69,6 @@ $micromamba_prefix/bin/micromamba -r $micromamba_prefix -y --no-rc --no-env inst
 # Install footing
 ###
 
-footing_ver="${FOOTING_VERSION:-1.0.0}"
 footing_branch="${FOOTING_BRANCH:-main}"
 footing_wheel="footing-$footing_ver-py3-none-any.whl"
 footing_package_url="https://raw.githubusercontent.com/footing-org/footing/$footing_branch/$footing_wheel"

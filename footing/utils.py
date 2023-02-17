@@ -37,8 +37,13 @@ def install_path():
     return (site_packages_dir / ".." / ".." / ".." / "..").resolve()
 
 
+def cache_path():
+    return install_path() / "cache"
+
+
 def conda_root_path():
-    return install_path() / "toolkits"
+    maj_ver = footing.version.__version__.split(".")[0]
+    return install_path() / f"v{maj_ver}"
 
 
 def condabin_path():

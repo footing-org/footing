@@ -26,7 +26,7 @@ class Toolkit(footing.core.Task):
     editable: bool = False
 
     def __post_init__(self):
-        self.conda_env_root = self.conda_env_root or str(footing.utils.conda_root_path() / "envs")
+        self.conda_env_root = self.conda_env_root or str(footing.utils.cache_path() / "toolkit")
         self.platform = self.platform or footing.utils.detect_platform()
         self.ctx += [footing.core.Lazy(self.enter)]
 
