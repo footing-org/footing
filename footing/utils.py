@@ -108,21 +108,21 @@ def conda_cmd(cmd, *, quiet=False):
 
 
 def detect_shell():
-    try:
-        return shellingham.detect_shell()
-    except (RuntimeError, shellingham.ShellDetectionFailure):
-        shell = None
-        if os.name in ("posix", "nt"):
-            if os.name == "posix":
-                shell = os.environ.get("SHELL")
-            elif os.name == "nt":
-                shell = os.environ.get("COMSPEC")
+    shell = None
+    if os.name in ("posix", "nt"):
+        if os.name == "posix":
+            shell = os.environ.get("SHELL")
+        elif os.name == "nt":
+            shell = os.environ.get("COMSPEC")
 
-        if shell:
-            return pathlib.Path(shell).stem, shell
-        else:
+    if shell:
+        return pathlib.Path(shell).stem, shell
+    else:
+        try:
+            return shellingham.detect_shell()
+        except (RuntimeError, shellingham.ShellDetectionFailure):
             return None, None
-
+        
 
 def detect_platform():
     match platform.system():

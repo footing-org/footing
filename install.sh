@@ -75,7 +75,7 @@ footing_package_url="https://raw.githubusercontent.com/footing-org/footing/$foot
 footing_package_dir=$(mktemp -d)
 footing_package_file="$footing_package_dir/$footing_wheel"
 
-printf "\033[0;32mInstalling footing...\033[0m\\n"
+printf "\033[0;32mInstalling footing... \033[0m\\n"
 download_file $footing_package_url $footing_package_file
 $micromamba_prefix/bin/pip3 install --upgrade --force-reinstall $footing_package_file
 $micromamba_prefix/bin/footing self init
