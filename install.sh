@@ -2,7 +2,7 @@
 set -e
 
 footing_ver="${FOOTING_VERSION:-1.0.0}"
-footing_maj_ver=(${footing_version//./ })
+footing_maj_ver=(${footing_ver//./ })
 default_footing_prefix=$HOME/.footing
 footing_prefix="${PREFIX:-$default_footing_prefix}"
 mkdir -p $footing_prefix
