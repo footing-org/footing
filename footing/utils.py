@@ -98,7 +98,7 @@ def installed_mod(*names):
 
 
 def conda_exe():
-    return f"{micromamba_path()} --no-rc -r {conda_root_path()}"
+    return f"{micromamba_path()} --no-rc -r {cache_path()}"
 
 
 def conda_cmd(cmd, *, quiet=False):
@@ -122,7 +122,7 @@ def detect_shell():
             return shellingham.detect_shell()
         except (RuntimeError, shellingham.ShellDetectionFailure):
             return None, None
-        
+
 
 def detect_platform():
     match platform.system():

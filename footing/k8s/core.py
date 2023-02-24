@@ -75,14 +75,22 @@ class Port:
 
 
 @dataclasses.dataclass
+class VolumeMount:
+    name: str
+    mount_path: str
+    sub_path: str = None
+
+
+@dataclasses.dataclass
 class Service:
     image: str
     name: str = None
-    env: typing.List[Env] = dataclasses.field(default_factory=list)
-    ports: typing.List[Port] = dataclasses.field(default_factory=list)
+    env: typing.List[Env] = None
+    ports: typing.List[Port] = None
     image_pull_policy: str = None
     command: typing.List[str] = None
     args: typing.List[str] = None
+    volume_mounts: typing.List[VolumeMount] = None
 
     def __post_init__(self):
         self.name = self.name or fmt_resource_name(self.image)
@@ -98,24 +106,40 @@ class Sleepy(Service):
 
 
 @dataclasses.dataclass
-class Pod(footing.core.Task):
+class PersistentVolumeClaim:
+    claim_name: str
+
+
+@dataclasses.dataclass
+class Volume:
+    name: str
+    persistent_volume_claim: PersistentVolumeClaim
+
+
+@dataclasses.dataclass
+class Pod(footing.core.Task, footing.core.Contextual):
     services: typing.List[Service] = dataclasses.field(default_factory=list)
-    spec: typing.Union[str, dict] = None
     name: str = None
+    volumes: typing.List[Volume] = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
         self.cmd += [footing.core.Lazy(self.create)]
 
-        if not self.spec or isinstance(self.spec, dict):
-            spec = self.spec or {
-                "apiVersion": "v1",
-                "kind": "Pod",
-                "metadata": {"name": self.resource_name},
-                "spec": {"containers": [asdict(container) for container in self.containers]},
-            }
-            self.spec = orjson.dumps(spec).decode("utf-8")
+        self._definition = {
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "metadata": {"name": self.resource_name},
+            "spec": {
+                "containers": [asdict(container) for container in self.containers],
+                "volumes": [asdict(volume) for volume in self.volumes],
+            },
+        }
 
         super().__post_init__()
+
+    @property
+    def definition(self):
+        return orjson.dumps(self._definition).decode("utf-8")
 
     @property
     def is_cacheable(self):
@@ -149,7 +173,7 @@ class Pod(footing.core.Task):
         with tempfile.TemporaryDirectory() as tmp_d:
             pod_yml_path = pathlib.Path(tmp_d) / "pod.json"
             with open(pod_yml_path, "w") as f:
-                f.write(self.spec)
+                f.write(self.definition)
 
             footing.utils.run(f"{kubectl_bin()} apply -f {pod_yml_path}")
 
@@ -165,6 +189,7 @@ def default_runner_service():
         name="runner",
         image_pull_policy="Always",
         env=[Env(name=K8S_RUNNER_ENV_VAR, value="True")],
+        volume_mounts=[VolumeMount(name="footing-cache", mount_path="/footing/cache")],
     )
 
 
@@ -173,7 +198,12 @@ class Runner(Pod):
     def __post_init__(self):
         self._runner = default_runner_service()
         self.services.append(self._runner)
-
+        self.volumes.append(
+            Volume(
+                name="footing-cache",
+                persistent_volume_claim=PersistentVolumeClaim(claim_name="footing-cache"),
+            )
+        )
         super().__post_init__()
 
 

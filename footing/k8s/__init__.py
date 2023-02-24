@@ -48,7 +48,7 @@ class sleepy(service):
         return _k8s().Sleepy
 
 
-class pod(footing.config.Runner):
+class pod(footing.config.Task, footing.config.Contextual):
     def __init__(self, *services, name=None):
         self._services = list(services)
         self._name = name

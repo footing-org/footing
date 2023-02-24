@@ -4,6 +4,10 @@ import footing.config as footing
 tools, k8s = footing.module("tools", "k8s")
 
 # Toolkits
+base = tools.toolkit("python==3.11")
+
+derived = tools.toolkit(base, "pyflakes")
+
 black = tools.toolkit("black==22.12.0", "python==3.11")
 poetry = tools.toolkit("poetry==1.3.0", "python==3.11")
 lock = footing.sh(
@@ -13,6 +17,8 @@ tk = tools.toolkit("python==3.11", poetry.bin("poetry install", input=lock))
 
 # Tasks
 fmt = black.sh("black .", entry=True)
+
+fmt2 = footing.sh("black .")
 
 # Artifacts
 wheel = footing.sh(poetry.sh("sh build.sh"), input="**", output="*.whl")

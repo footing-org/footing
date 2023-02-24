@@ -14,12 +14,12 @@ ENV FOOTING_SELF_INIT_NO_SHELL_INTEGRATION=1 FOOTING_SELF_INIT_NO_SYSTEM=1 FOOTI
 ADD install.sh .
 RUN /bin/bash install.sh
 
-RUN rm -rf /footing/toolkits/pkgs
+RUN rm -rf /footing/v1/pkgs
 
 # Final image
 FROM debian:bullseye-slim
 
-ENV PATH=/footing/toolkits/bin:$PATH PYTHONUNBUFFERED=1
+ENV PATH=/footing/v1/bin:$PATH PYTHONUNBUFFERED=1
 
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /footing /footing

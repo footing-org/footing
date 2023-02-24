@@ -151,6 +151,40 @@ class Task(Lazy, Configurable):
     def cmd(self):
         return self._cmd
 
+    def clear(self):
+        """Clears the cache for this task"""
+        return Clear(self)
+
+    def rm(self):
+        """Remove task outputs"""
+        return Rm(self)
+
+
+class Clear(Lazy):
+    def __init__(self, task):
+        self.task = task
+
+    @property
+    def obj_class(self):
+        return _core().Clear
+
+    @property
+    def obj_kwargs(self):
+        return {"task": self.task}
+
+
+class Rm(Lazy):
+    def __init__(self, task):
+        self.task = task
+
+    @property
+    def obj_class(self):
+        return _core().Rm
+
+    @property
+    def obj_kwargs(self):
+        return {"task": self.task}
+
 
 class Shell(Task):
     def __init__(self, *cmd, input=None, output=None, entry=False):
@@ -174,14 +208,6 @@ class sh(Shell):
     pass
 
 
-class Enterable:
-    def __truediv__(self, obj):
-        return enter(self) / obj
-
-    def enter(self, obj):
-        raise NotImplementedError
-
-
 class enter(Lazy, Configurable):
     """Enter a list of objects"""
 
@@ -197,7 +223,7 @@ class enter(Lazy, Configurable):
 
         entered = self._objs[-1]
         for val in reversed(self._objs[:-1]):
-            if not isinstance(val, Enterable):
+            if not isinstance(val, Contextual):
                 raise TypeError(f"unsupported operand type for /: '{type(val)}'")
 
             entered = val.enter(entered)
@@ -205,7 +231,13 @@ class enter(Lazy, Configurable):
         return entered(*args, **kwargs)
 
 
-class Runner(Task, Enterable):
+class Contextual:
+    def __truediv__(self, obj):
+        return enter(self) / obj
+
+    def enter(self, obj):
+        raise NotImplementedError
+
     def enter(self, val):
         if not isinstance(val, Task):
             raise TypeError(f"unsupported operand type for /: '{type(val)}'")
@@ -214,5 +246,4 @@ class Runner(Task, Enterable):
         return val
 
     def sh(self, *cmd, input=None, output=None, entry=False):
-        # TODO: Run a shell when there are no tasks
         return self.enter(Shell(*cmd, input=input, output=output, entry=entry))

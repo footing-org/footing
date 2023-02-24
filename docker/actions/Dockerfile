@@ -1,6 +1,6 @@
 FROM debian:bullseye-slim AS builder
 
-RUN apt-get update && apt-get upgrade && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     bzip2 \
     ca-certificates \
     curl \
@@ -17,8 +17,8 @@ FROM footingorg/core
 
 COPY --from=builder / /
 
-RUN micromamba -r /footing/toolkits/ install kubernetes-client pyyaml rsync -n base -c conda-forge -y && \
-    rm -rf /footing/toolkits/pkgs
+RUN micromamba -r /footing/v1/ install kubernetes-client rsync -n base -c conda-forge -y && \
+    rm -rf /footing/v1/pkgs
 RUN chown -R footing /footing
 
 # Copy the script for starting the runner

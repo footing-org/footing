@@ -5,6 +5,7 @@ import glob
 import itertools
 import os
 import re
+import shutil
 import typing
 
 import orjson
@@ -32,6 +33,9 @@ class Artifact:
 
     @property
     def obj_hash(self):
+        raise NotImplementedError
+
+    def rm(self):
         raise NotImplementedError
 
 
@@ -62,21 +66,22 @@ class Path(Artifact):
 
             return val
 
+    def rm(self):
+        try:
+            try:
+                os.remove(self.artifact_uuid)
+            except PermissionError:
+                shutil.rmtree(self.artifact_uuid)
+        except FileNotFoundError:
+            pass
+
 
 @dataclasses.dataclass
 class Obj(footing.config.Configurable):
     """A core footing object"""
 
-    def __post_init__(self):
-        self._is_initialized = True
-
     def freeze(self):
         """Freeze the object hash and artifacts"""
-        if not getattr(self, "_is_initialized", False):
-            raise RuntimeError(
-                "Cannot freeze object during initialization or forgot to call super() in __post_init__"
-            )
-
         serialized = orjson.dumps(self)
         self._obj_hash = footing.utils.hash128(serialized)
 
@@ -86,6 +91,13 @@ class Obj(footing.config.Configurable):
         self._artifacts = {
             artifact_uuid: Artifact._registry[artifact_uuid] for artifact_uuid in artifact_uuids
         }
+
+    def unfreeze(self):
+        try:
+            delattr(self, "_obj_hash")
+            delattr(self, "_artifacts")
+        except AttributeError:
+            pass
 
     @property
     def obj_hash(self):
@@ -145,12 +157,34 @@ class Cmd:
         return self.cmd
 
 
+def exec(cmd):
+    """Main implementation for executing a command"""
+    if isinstance(cmd, Lazy):
+        cmd = cmd()
+
+        # If the lazy object doesn't return a Cmd, we're done
+        # running
+        if not isinstance(cmd, Cmd):
+            return
+
+    if isinstance(cmd, Cmd):
+        cmd = str(cmd)
+
+    if isinstance(cmd, str):
+        footing.cli.pprint(cmd.removeprefix(footing.utils.conda_exe() + " "))
+        footing.utils.run(cmd)
+    elif callable(cmd):
+        cmd()
+    else:
+        raise RuntimeError(f'Invalid command - "{cmd}"')
+
+
 @dataclasses.dataclass
 class Task(Obj):
     cmd: typing.List[typing.Union[str, "Task", Lazy]] = dataclasses.field(default_factory=list)
     input: typing.List[typing.Union["Task", Artifact]] = dataclasses.field(default_factory=list)
     output: typing.List[Artifact] = dataclasses.field(default_factory=list)
-    ctx: typing.List[typing.Union["Task", Lazy]] = dataclasses.field(default_factory=list)
+    ctx: typing.List["Contextual"] = dataclasses.field(default_factory=list)
     deps: typing.List["Task"] = dataclasses.field(default_factory=list)
 
     def __post_init__(self):
@@ -170,63 +204,22 @@ class Task(Obj):
                 ref_cmd.append(cmd)
             self.cmd = ref_cmd
 
-        super().__post_init__()
-
     @property
     def cli(self):
         return super().cli | {
             "main": Entry(method=self.__call__),
         }
 
-    def __enter__(self):
-        if hasattr(self, "_cm"):
-            raise RuntimeError(f"Object is not re-entrant")
-
-        self._cm = self.enter()
-        return self._cm.__enter__()
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self._cm.__exit__(exc_type, exc_value, traceback)
-        del self._cm
-
     def __call__(self):
         return self.call()
 
-    def __truediv__(self, other):
-        return self.div(other)
-
-    @contextlib.contextmanager
-    def enter(self):
-        """Main implementation for entering object"""
-        yield
-
-    def div(self, obj):
-        """Main implementation for the slash operator"""
-        return Task(cmd=[obj], ctx=[self])
-
-    def exec(self, cmd):
-        """Main implementation for executing a command"""
-        if isinstance(cmd, Lazy):
-            cmd = cmd()
-
-            # If the lazy object doesn't return a Cmd, we're done
-            # running
-            if not isinstance(cmd, Cmd):
-                return
-
-        if isinstance(cmd, Cmd):
-            cmd = str(cmd)
-
-        if isinstance(cmd, str):
-            footing.cli.pprint(cmd.removeprefix(footing.utils.conda_exe() + " "))
-            footing.utils.run(cmd)
-        elif callable(cmd):
-            cmd()
-        else:
-            raise RuntimeError(f'Invalid command - "{cmd}"')
-
     def call(self):
         """Main implementation for calling object"""
+        if footing.ctx.get().debug:
+            footing.cli.pprint(
+                f"run={self.config_name or self.output or self.__class__.__name__} obj_hash={self.obj_hash} run_hash={self.run_hash} is_cached={self.is_cached}"
+            )
+
         if self.is_cached:
             return
 
@@ -236,7 +229,7 @@ class Task(Obj):
 
             for cmd in itertools.chain(self.deps, self.ctx, self.input, self.cmd):
                 if not isinstance(cmd, Artifact):
-                    self.exec(cmd)
+                    exec(cmd)
 
         self.cache()
 
@@ -264,7 +257,7 @@ class Task(Obj):
             try:
                 self.run_cache_file.touch()
             except FileNotFoundError:
-                self.run_cache_file.mkdir(parents=True, exist_ok=True)
+                self.run_cache_file.parent.mkdir(parents=True, exist_ok=True)
                 self.run_cache_file.touch()
 
     def uncache(self):
@@ -276,6 +269,66 @@ class Task(Obj):
             return self.run_cache_file.exists() if self.is_cacheable else False
         else:
             return False
+
+
+class Contextual:
+    """A mixin for tasks that can modify the execution environment"""
+
+    def __enter__(self):
+        if hasattr(self, "_cm"):
+            raise RuntimeError(f"Object is not re-entrant")
+
+        self._cm = self.enter()
+        return self._cm.__enter__()
+
+    @contextlib.contextmanager
+    def enter(self):
+        """Main implementation for entering object"""
+        yield
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._cm.__exit__(exc_type, exc_value, traceback)
+        del self._cm
+
+    def __truediv__(self, other):
+        return self.div(other)
+
+    def div(self, obj):
+        """Main implementation for the slash operator"""
+        return Task(cmd=[obj], ctx=[self])
+
+
+@dataclasses.dataclass(kw_only=True)
+class Clear(Task):
+    """Clears the cache for a given task"""
+
+    task: Task
+
+    def __post_init__(self):
+        self.cmd.append(Lazy(self.clear))
+
+        super().__post_init__()
+
+    def clear(self):
+        self.task.uncache()
+
+
+@dataclasses.dataclass(kw_only=True)
+class Rm(Task):
+    """Remove the artifacts for a given task and clear the cache"""
+
+    task: Task
+
+    def __post_init__(self):
+        self.cmd.append(Lazy(self.rm))
+
+        super().__post_init__()
+
+    def rm(self):
+        for output in self.task.output:
+            output.rm()
+
+        self.task.uncache()
 
 
 @dataclasses.dataclass

@@ -8,7 +8,7 @@ def _tools():  # Always do nested imports in the config module
     return footing.tools.core
 
 
-class toolkit(footing.config.Runner):
+class toolkit(footing.config.Task, footing.config.Contextual):
     @property
     def obj_class(self):
         return _tools().Toolkit

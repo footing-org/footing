@@ -17,27 +17,24 @@ class Install(footing.core.Task):
         packages = " ".join(self.packages)
         channels = " ".join(f"-c {c}" for c in self.channels)
         self.cmd = [f"{footing.utils.conda_exe()} install -y {packages} {channels}"]
+        super().__post_init__()
 
 
 @dataclasses.dataclass
-class Toolkit(footing.core.Task):
+class Toolkit(footing.core.Task, footing.core.Contextual):
     conda_env_root: str = None
     platform: str = None
-    editable: bool = False
 
     def __post_init__(self):
         self.conda_env_root = self.conda_env_root or str(footing.utils.cache_path() / "toolkit")
         self.platform = self.platform or footing.utils.detect_platform()
         self.ctx += [footing.core.Lazy(self.enter)]
 
-        # TODO: Set the project path in the runtime context so that we can re-used toolkits for the same
-        # projects in different directories
-        self.project = str(pathlib.Path.cwd())
-
         # For now, every toolkit is duplicated for each project path. In the future we will be able to
         # globally share toolkits when only standard installers (e.g. conda) are used. When non-standard
         # ones are used (e.g. poetry), we must resort to namespacing it to avoid global clashes.
-        self._conda_env_name = f"{self.config_name or footing.utils.hash128(self)}-{footing.utils.hash32(self.project)}"
+        self._conda_env_name = self.run_hash
+        self.unfreeze()  # Uncache the run hash since we're going to modify the object more below
 
         # TODO: Find a better way to shorten environment names
         if len(str(self.conda_env_path)) > 113:
