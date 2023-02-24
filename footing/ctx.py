@@ -11,8 +11,6 @@ class Ctx:
     """Global context"""
 
     cache: bool = True
-    debug: bool = False
-    entry_add: str = ""
     env: dict = dataclasses.field(default_factory=dict)
 
     def update(self, **kwargs):
@@ -36,7 +34,6 @@ def get():
 def set(**kwargs):
     global _ctx
 
-    # TODO consider deepcopy when we have mutable objects
     ctx = get()
     prev = copy.copy(ctx)
 

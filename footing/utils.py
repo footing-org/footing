@@ -5,14 +5,10 @@ import platform
 import subprocess
 
 import orjson
-import shellingham
 import xxhash
 
 import footing.ctx
 import footing.version
-
-
-unset = object()
 
 
 def hash32(val):
@@ -35,6 +31,10 @@ def install_path():
         str(footing_file_path.locate())[: -len(str(footing_file_path))]
     )
     return (site_packages_dir / ".." / ".." / ".." / "..").resolve()
+
+
+def toolkit_path():
+    return install_path() / "toolkit"
 
 
 def cache_path():
@@ -66,64 +66,6 @@ def footing_path():
     return bin_path("footing")
 
 
-def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
-    """Runs a subprocess shell with check=True by default"""
-    if env or footing.ctx.get().env:
-        env = os.environ | footing.ctx.get().env | (env or {})
-
-    return subprocess.run(
-        cmd,
-        shell=True,
-        check=check,
-        stdin=stdin,
-        stdout=stdout,
-        stderr=stderr,
-        env=env,
-        cwd=cwd,
-    )
-
-
-def installed_bin(*names):
-    """
-    Returns True if all binaries are installed under footing's bin folder
-    """
-    return all([bin_path(name).exists() for name in names])
-
-
-def installed_mod(*names):
-    """
-    Returns True if all modules are installed under footing's Python site packages
-    """
-    return all([mod_path(name).exists() for name in names])
-
-
-def conda_exe():
-    return f"{micromamba_path()} --no-rc -r {cache_path()}"
-
-
-def conda_cmd(cmd, *, quiet=False):
-    """Run a conda command"""
-    quiet = " -q" if quiet else ""
-    return run(f"{conda_exe()}{quiet} {cmd}")
-
-
-def detect_shell():
-    shell = None
-    if os.name in ("posix", "nt"):
-        if os.name == "posix":
-            shell = os.environ.get("SHELL")
-        elif os.name == "nt":
-            shell = os.environ.get("COMSPEC")
-
-    if shell:
-        return pathlib.Path(shell).stem, shell
-    else:
-        try:
-            return shellingham.detect_shell()
-        except (RuntimeError, shellingham.ShellDetectionFailure):
-            return None, None
-
-
 def detect_platform():
     match platform.system():
         case "Windows":
@@ -145,3 +87,31 @@ def detect_platform():
             arch = "32"
 
     return f"{system}-{arch}"
+
+
+
+def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
+    """Runs a subprocess shell with check=True by default"""
+    if env or footing.ctx.get().env:
+        env = os.environ | footing.ctx.get().env | (env or {})
+
+    return subprocess.run(
+        cmd,
+        shell=True,
+        check=check,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=stderr,
+        env=env,
+        cwd=cwd,
+    )
+
+
+def conda_exe():
+    return f"{micromamba_path()} --no-rc -r {conda_root_path()}"
+
+
+def conda_cmd(cmd, *, quiet=False):
+    """Run a conda command"""
+    quiet = " -q" if quiet else ""
+    return run(f"{conda_exe()}{quiet} {cmd}")

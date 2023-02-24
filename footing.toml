@@ -1,0 +1,12 @@
+[task.black]
+command = "black ."
+shed = "dev"
+
+[shed.main]
+registry = "conda-forge"
+
+[shed.main.packages]
+python = "3.11.0"
+
+[shed.dev]
+black = "23.1.0"
