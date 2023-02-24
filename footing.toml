@@ -1,12 +1,20 @@
+[var]
+python_version = "3.11.0"
+
+[task.pip-compile]
+command = "pip-compile"
+kit = "dev"
+input = "requirements.in"
+output = "requirements.txt"
+
 [task.black]
 command = "black ."
-shed = "dev"
+kit = "dev"
+input = "^pip-compile"
 
-[shed.main]
-registry = "conda-forge"
-
-[shed.main.packages]
+[kit.main.packages]
 python = "3.11.0"
 
-[shed.dev]
+[kit.dev.packages]
 black = "23.1.0"
+pip-tools = "6.12.2"

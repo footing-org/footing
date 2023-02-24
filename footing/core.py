@@ -1,5 +1,6 @@
 import collections
 import contextlib
+import copy
 import dataclasses
 import functools
 import os
@@ -32,7 +33,7 @@ class Registry:
                 raise ValueError(f'Invalid registry "{val}"')
 
     def install(self, packages):
-        install_strs = ' '.join(f'"{package.install_str}"' for package in packages)
+        install_strs = " ".join(f'"{package.install_str}"' for package in packages)
 
         match self.type:
             case "conda":
@@ -66,7 +67,7 @@ class Package:
                 return cls(**(defaults | val))
             case _:
                 raise TypeError(f'Invalid tool type "{type(val)}"')
-            
+
     @property
     def install_str(self):
         match self.version:
@@ -75,7 +76,7 @@ class Package:
             case _ if re.match(self.version, r"^[><~=]"):
                 return f"{self.name}{self.version}"
             case _:
-                return f"{self.name}={self.version}" 
+                return f"{self.name}={self.version}"
 
 
 class Cacheable:
@@ -103,26 +104,32 @@ class Cacheable:
 
 
 @dataclasses.dataclass(frozen=True)
-class Shed(Cacheable):
+class Kit(Cacheable):
     name: str
     packages: typing.Tuple[Package]
     root: str = dataclasses.field(default_factory=lambda: str(footing.utils.toolkit_path()))
     platform: str = dataclasses.field(default_factory=footing.utils.detect_platform)
 
     @classmethod
-    def from_config(cls, name, val, /):
+    def from_config(cls, name, val=None, /):
+        if not val:
+            val = footing.config.find(f"kit.{name}")
+
         # Load the default registry
         default_registry_name = val.get("registry", "conda-forge")
         default_registry = Registry.from_config(default_registry_name)
         defaults = {"registry": default_registry}
 
-        return cls(
-            name=name,
-            packages=tuple(
-                Package.from_config(name, val, defaults=defaults)
-                for name, val in val.get("packages", {}).items()
-            )
+        packages = tuple(
+            Package.from_config(name, val, defaults=defaults)
+            for name, val in val.get("packages", {}).items()
         )
+
+        if name == "dev":  # Dev always inherits main
+            main = Kit.from_config("main")
+            packages = main.packages + packages
+
+        return cls(name=name, packages=packages)
 
     @property
     def venv_path(self):
@@ -154,5 +161,60 @@ class Shed(Cacheable):
         with self.enter():
             for registry, packages in packages_by_registry.items():
                 registry.install(packages)
+
+        self.cache()
+
+
+class Artifact:
+    @classmethod
+    def from_config(cls, val):
+        match val:
+            case str() as str_val if str_val.startswith("^"):
+                return Task.from_config(val[1:])
+            case str():
+                return File(path=val)
+            case _:
+                raise ValueError(f'Invalid artifact - "{val}"')
+
+
+@dataclasses.dataclass(frozen=True)
+class File(Artifact):
+    path: str
+
+
+@dataclasses.dataclass(frozen=True)
+class Task(Cacheable):
+    name: str
+    command: str
+    input: typing.Tuple[typing.Union[Artifact, "Task"]] = dataclasses.field(default_factory=tuple)
+    output: typing.Tuple[typing.Union[Artifact, "Task"]] = dataclasses.field(default_factory=tuple)
+    kit: Kit = None
+
+    @classmethod
+    def from_config(cls, name, val=None, /):
+        if not val:
+            val = footing.config.find(f"task.{name}")
+
+        kit = Kit.from_config(val["kit"])
+        input = val.get("input") or []
+        input = [input] if isinstance(input, str) else input
+        input = [Artifact.from_config(val) for val in input]
+
+        output = val.get("output") or []
+        output = [output] if isinstance(output, str) else output
+        output = [Artifact.from_config(val) for val in output]
+
+        return cls(name=name, kit=kit, command=val["command"], input=input, output=output)
+
+    def run(self):
+        if self.is_cached:
+            return
+
+        with contextlib.ExitStack() as stack:
+            if self.kit:
+                self.kit.build()
+                stack.enter_context(self.kit.enter())
+
+            footing.utils.run(self.command)
 
         self.cache()

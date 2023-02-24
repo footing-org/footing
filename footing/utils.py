@@ -89,7 +89,6 @@ def detect_platform():
     return f"{system}-{arch}"
 
 
-
 def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=None):
     """Runs a subprocess shell with check=True by default"""
     if env or footing.ctx.get().env:
