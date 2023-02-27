@@ -55,7 +55,7 @@ xxhash = ">=3.2.0"
 black = "23.1.0"
 
 [tool.poetry.scripts]
-footing = 'footing.cli:main'
+footing = 'footing.cli:cli'
 
 [tool.pytest.ini_options]
 xfail_strict = true

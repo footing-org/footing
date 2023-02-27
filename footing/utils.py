@@ -7,22 +7,23 @@ import subprocess
 import orjson
 import xxhash
 
+import footing.cli
 import footing.ctx
 import footing.version
 
 
-def hash32(val):
-    if dataclasses.is_dataclass(val):
-        val = orjson.dumps(val)
+def hash(*vals, algorithm=xxhash.xxh3_128_hexdigest):
+    vals = [v if not dataclasses.is_dataclass(v) else orjson.dumps(v) for v in vals]
 
-    return xxhash.xxh32_hexdigest(val)
+    return algorithm(" ".join(algorithm(v) for v in vals))
 
 
-def hash128(val):
-    if dataclasses.is_dataclass(val):
-        val = orjson.dumps(val)
+def hash32(*vals):
+    return hash(*vals, algorithm=xxhash.xxh32_hexdigest)
 
-    return xxhash.xxh3_128_hexdigest(val)
+
+def hash128(*vals):
+    return hash(*vals, algorithm=xxhash.xxh3_128_hexdigest)
 
 
 def install_path():
@@ -94,6 +95,7 @@ def run(cmd, *, check=True, stdin=None, stdout=None, stderr=None, env=None, cwd=
     if env or footing.ctx.get().env:
         env = os.environ | footing.ctx.get().env | (env or {})
 
+    footing.cli.pprint(cmd.removeprefix(conda_exe()).strip())
     return subprocess.run(
         cmd,
         shell=True,

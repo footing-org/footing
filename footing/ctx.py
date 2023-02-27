@@ -11,6 +11,7 @@ class Ctx:
     """Global context"""
 
     cache: bool = True
+    debug: bool = False
     env: dict = dataclasses.field(default_factory=dict)
 
     def update(self, **kwargs):

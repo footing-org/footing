@@ -1,15 +1,133 @@
 import collections
 import contextlib
-import copy
+import contextvars
 import dataclasses
 import functools
 import os
 import pathlib
 import re
 import typing
+import weakref
+
+import networkx as nx
 
 import footing.config
 import footing.utils
+
+
+# Thread/async safe stack for contextual classes
+_context_stack = contextvars.ContextVar("context_stack")
+
+
+class Callable:
+    def __call__(self, *args, **kwargs):
+        return self.call(*args, **kwargs)
+
+    def call(self):
+        raise NotImplementedError
+
+
+class Contextual:
+    def __post_init__(self):
+        if not _context_stack.get(None):
+            _context_stack.set(weakref.WeakKeyDictionary())
+
+        _context_stack.get()[self] = []
+
+    @contextlib.contextmanager
+    def ctx(self):
+        raise NotImplementedError
+
+    def __enter__(self):
+        ctx = self.ctx()
+        _context_stack.get()[self].append(ctx)
+        return ctx.__enter__()
+
+    def __exit__(self, *args, **kwargs):
+        ctx = _context_stack.get()[self].pop()
+        ctx.__exit__(*args, **kwargs)
+
+
+@dataclasses.dataclass(frozen=True)
+class Uri:
+    name: str
+    type: str
+
+    @property
+    def uri(self):
+        return f"{self.type}.{self.name}"
+
+
+@dataclasses.dataclass(frozen=True)
+class Artifact(Uri):
+    path: str = None
+
+    @classmethod
+    def from_config(cls, val):
+        match val:
+            case str() as str_val if re.search(r"[\?\*\[\]]", str_val):
+                return cls(name=val, type="glob", path=val)
+            case str():
+                return cls(name=val, type="file", path=val)
+            case dict():
+                return cls(**val)
+            case _:
+                raise ValueError(f'Invalid artifact - "{val}"')
+
+
+@dataclasses.dataclass(frozen=True)
+class Task(Uri, Callable):
+    _input: typing.Tuple[Artifact] = dataclasses.field(default_factory=tuple)
+    _output: typing.Tuple[Artifact] = dataclasses.field(default_factory=tuple)
+    _upstream: typing.Tuple["Task"] = dataclasses.field(default_factory=tuple)
+
+    @property
+    def input(self):
+        return self._input
+
+    @property
+    def output(self):
+        return self._output
+
+    @property
+    def upstream(self):
+        return self._upstream
+
+    @classmethod
+    def from_config(cls, val, /):
+        raise NotImplementedError
+
+    @property
+    def edges(self):
+        for u in self.upstream:
+            yield Edge(upstream=u, downstream=self)
+            yield from u.edges
+
+    @property
+    def graph(self):
+        edges = tuple(self.edges)
+        tasks = [e.upstream for e in edges] + [e.downstream for e in edges] + [self]
+        return Graph(edges=edges, tasks=tuple(set(tasks)))
+
+
+@dataclasses.dataclass(frozen=True)
+class Edge:
+    upstream: Task
+    downstream: Task
+
+
+@dataclasses.dataclass(frozen=True)
+class Graph(Callable):
+    edges: typing.Tuple[Edge]
+    tasks: typing.Tuple[Task]
+
+    def call(self):
+        g = nx.DiGraph()
+        g.add_nodes_from((t.uri, {"task": t}) for t in set(self.tasks))
+        g.add_edges_from((e.upstream.uri, e.downstream.uri) for e in set(self.edges))
+
+        for n in nx.topological_sort(g):
+            g.nodes[n]["task"]()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -29,11 +147,11 @@ class Registry:
                 return cls(name=val, type=val)
             case "conda-forge":
                 return cls(name=val, type="conda", channel="conda-forge")
-            case other:
+            case _:
                 raise ValueError(f'Invalid registry "{val}"')
 
     def install(self, packages):
-        install_strs = " ".join(f'"{package.install_str}"' for package in packages)
+        install_strs = " ".join(f'"{package.package}"' for package in packages)
 
         match self.type:
             case "conda":
@@ -48,96 +166,65 @@ class Registry:
 
 @dataclasses.dataclass(frozen=True)
 class Package:
-    name: str
+    package: str
     registry: Registry
-    version: str = "*"
 
     @classmethod
-    def from_config(cls, name, val, /, *, defaults=None):
+    def from_config(cls, val, /, *, defaults=None):
         cfg = footing.config.get()
         defaults = defaults or {}
 
         match val:
             case str():
-                return cls(**(defaults | {"name": name, "version": val}))
+                return cls(**(defaults | {"package": val}))
             case dict():
                 if "registry" in val:
                     val["registry"] = Registry.from_config(val["registry"])
 
                 return cls(**(defaults | val))
             case _:
-                raise TypeError(f'Invalid tool type "{type(val)}"')
-
-    @property
-    def install_str(self):
-        match self.version:
-            case "*":
-                return f"{self.name}"
-            case _ if re.match(self.version, r"^[><~=]"):
-                return f"{self.name}{self.version}"
-            case _:
-                return f"{self.name}={self.version}"
-
-
-class Cacheable:
-    @functools.cached_property
-    def _obj_hash(self):  # All cached properties must be private variables
-        return footing.utils.hash128(self)
-
-    @property
-    def run_cache_file(self):
-        return footing.utils.cache_path() / "run" / self._obj_hash
-
-    def cache(self):
-        try:
-            self.run_cache_file.touch()
-        except FileNotFoundError:
-            self.run_cache_file.parent.mkdir(parents=True, exist_ok=True)
-            self.run_cache_file.touch()
-
-    def uncache(self):
-        self.run_cache_file.unlink(missing_ok=True)
-
-    @property
-    def is_cached(self):
-        return self.run_cache_file.exists() if footing.ctx.get().cache else False
+                raise TypeError(f'Invalid package type "{type(val)}"')
 
 
 @dataclasses.dataclass(frozen=True)
-class Kit(Cacheable):
-    name: str
+class CondaEnv(Artifact):
+    type: str = "conda_env"
+
+
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class Kit(Task, Contextual):
+    type: str = "kit"
     packages: typing.Tuple[Package]
-    root: str = dataclasses.field(default_factory=lambda: str(footing.utils.toolkit_path()))
-    platform: str = dataclasses.field(default_factory=footing.utils.detect_platform)
 
     @classmethod
-    def from_config(cls, name, val=None, /):
-        if not val:
-            val = footing.config.find(f"kit.{name}")
+    def from_config(cls, val, /):
+        cfg = footing.config.find(f"kit.{val}")
 
         # Load the default registry
-        default_registry_name = val.get("registry", "conda-forge")
+        default_registry_name = cfg.get("registry", "conda-forge")
         default_registry = Registry.from_config(default_registry_name)
         defaults = {"registry": default_registry}
 
         packages = tuple(
-            Package.from_config(name, val, defaults=defaults)
-            for name, val in val.get("packages", {}).items()
+            Package.from_config(package, defaults=defaults) for package in cfg.get("packages", [])
         )
 
-        if name == "dev":  # Dev always inherits main
-            main = Kit.from_config("main")
-            packages = main.packages + packages
+        return cls(name=val, packages=packages)
 
-        return cls(name=name, packages=packages)
+    @functools.cached_property
+    def _conda_env(self):
+        path = footing.utils.toolkit_path() / footing.utils.hash128(
+            self, footing.utils.detect_platform()
+        )
+        return CondaEnv(name=self.name, path=path)
 
     @property
-    def venv_path(self):
-        return pathlib.Path(self.root) / self._obj_hash
+    def output(self):
+        return [self._conda_env()]
 
     @contextlib.contextmanager
-    def enter(self):
-        prefix = self.venv_path
+    def ctx(self):
+        prefix = pathlib.Path(self._conda_env.path)
         with footing.ctx.set(
             env={
                 "PATH": f'{prefix / "bin"}:{os.environ.get("PATH", "")}',
@@ -147,74 +234,58 @@ class Kit(Cacheable):
         ):
             yield
 
-    def build(self):
+    def call(self):
         """Build the toolkit, utilizing the cache if necessary"""
-        if self.is_cached and self.venv_path.exists():
-            return
-
-        footing.utils.conda_cmd(f"create -q -y -p {self.venv_path}")
+        footing.utils.conda_cmd(f"create -q -y -p {self._conda_env.path}")
 
         packages_by_registry = collections.defaultdict(list)
         for package in self.packages:
             packages_by_registry[package.registry].append(package)
 
-        with self.enter():
+        with self:
             for registry, packages in packages_by_registry.items():
                 registry.install(packages)
 
-        self.cache()
+        return [self._conda_env]
 
 
-class Artifact:
-    @classmethod
-    def from_config(cls, val):
-        match val:
-            case str() as str_val if str_val.startswith("^"):
-                return Task.from_config(val[1:])
-            case str():
-                return File(path=val)
-            case _:
-                raise ValueError(f'Invalid artifact - "{val}"')
-
-
-@dataclasses.dataclass(frozen=True)
-class File(Artifact):
-    path: str
-
-
-@dataclasses.dataclass(frozen=True)
-class Task(Cacheable):
-    name: str
+@dataclasses.dataclass(frozen=True, kw_only=True)
+class Op(Task):
+    type: str = "op"
     command: str
-    input: typing.Tuple[typing.Union[Artifact, "Task"]] = dataclasses.field(default_factory=tuple)
-    output: typing.Tuple[typing.Union[Artifact, "Task"]] = dataclasses.field(default_factory=tuple)
     kit: Kit = None
 
     @classmethod
-    def from_config(cls, name, val=None, /):
-        if not val:
-            val = footing.config.find(f"task.{name}")
+    def from_config(cls, val):
+        cfg = footing.config.find(f"op.{val}")
+        kit = Kit.from_config(cfg["kit"]) if "kit" in cfg else None
 
-        kit = Kit.from_config(val["kit"])
-        input = val.get("input") or []
+        input = cfg.get("input") or []
         input = [input] if isinstance(input, str) else input
-        input = [Artifact.from_config(val) for val in input]
-
-        output = val.get("output") or []
+        output = cfg.get("output") or []
         output = [output] if isinstance(output, str) else output
-        output = [Artifact.from_config(val) for val in output]
+        upstream = [cls.from_config(i[1:].strip()) for i in input if i.startswith("^")]
+        if kit:
+            upstream.append(kit)
 
-        return cls(name=name, kit=kit, command=val["command"], input=input, output=output)
+        input = [Artifact.from_config(i) for i in input if not i.startswith("^")]
+        for u in upstream:
+            input.extend(u._output)
 
-    def run(self):
-        if self.is_cached:
-            return
+        output = [Artifact.from_config(o) for o in output]
 
+        return cls(
+            name=val,
+            kit=kit,
+            command=cfg["command"],
+            _input=tuple(input),
+            _output=tuple(output),
+            _upstream=tuple(upstream),
+        )
+
+    def call(self):
         with contextlib.ExitStack() as stack:
             if self.kit:
-                self.kit.build()
-                stack.enter_context(self.kit.enter())
+                stack.enter_context(self.kit)
 
             footing.utils.run(self.command)
-
-        self.cache()

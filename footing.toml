@@ -1,20 +1,24 @@
 [var]
 python_version = "3.11.0"
 
-[task.pip-compile]
+[op.pip-compile]
 command = "pip-compile"
 kit = "dev"
-input = "requirements.in"
+input = "pyproject.toml"
 output = "requirements.txt"
 
-[task.black]
+[op.black]
 command = "black ."
 kit = "dev"
-input = "^pip-compile"
+input = ["^pip-compile", "footing/**"]
 
-[kit.main.packages]
-python = "3.11.0"
+[kit.base]
+packages = [
+    "python==3.11.0",
+]
 
-[kit.dev.packages]
-black = "23.1.0"
-pip-tools = "6.12.2"
+[kit.dev]
+packages = [
+    "black==23.1.0",
+    "pip-tools==6.12.2",
+]
