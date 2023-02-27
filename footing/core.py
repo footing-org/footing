@@ -67,6 +67,16 @@ class Uri:
 
 
 @dataclasses.dataclass(frozen=True)
+class Obj(Uri, Factory):
+    type = None  # Intentionally set as a class variable that must be set by children
+
+    @classmethod
+    def from_config(cls, name, /):
+        cfg = footing.config.find(f"{cls.type}.{name}")
+        return cls.factory(cfg, defaults={"name": name})
+
+
+@dataclasses.dataclass(frozen=True)
 class Artifact(Uri, Factory):
     path: str = None
 
@@ -86,11 +96,10 @@ class Artifact(Uri, Factory):
 
 
 @dataclasses.dataclass(frozen=True)
-class Task(Uri, Callable, Factory):
+class Task(Obj, Callable):
     _input: typing.Tuple[Artifact] = dataclasses.field(default_factory=tuple)
     _output: typing.Tuple[Artifact] = dataclasses.field(default_factory=tuple)
     _upstream: typing.Tuple["Task"] = dataclasses.field(default_factory=tuple)
-    type = "task"  # Intentionally use a class variable for task types
 
     @property
     def input(self):
@@ -103,11 +112,6 @@ class Task(Uri, Callable, Factory):
     @property
     def upstream(self):
         return self._upstream
-
-    @classmethod
-    def from_config(cls, name, /):
-        cfg = footing.config.find(f"{cls.type}.{name}")
-        return cls.factory(cfg, defaults={"name": name})
 
     @property
     def edges(self):
