@@ -1,6 +1,7 @@
 import collections
 import contextlib
 import contextvars
+import copy
 import dataclasses
 import functools
 import os
@@ -48,6 +49,13 @@ class Contextual:
         ctx.__exit__(*args, **kwargs)
 
 
+class Factory:
+    @classmethod
+    def factory(cls, val, /, *, defaults=None):
+        defaults = defaults or {}
+        return cls(**(defaults | val))
+
+
 @dataclasses.dataclass(frozen=True)
 class Uri:
     name: str
@@ -59,27 +67,30 @@ class Uri:
 
 
 @dataclasses.dataclass(frozen=True)
-class Artifact(Uri):
+class Artifact(Uri, Factory):
     path: str = None
 
     @classmethod
-    def from_config(cls, val):
+    def factory(cls, val, /, *, defaults=None):
         match val:
             case str() as str_val if re.search(r"[\?\*\[\]]", str_val):
-                return cls(name=val, type="glob", path=val)
+                kwargs = {"name": val, "type": "glob", "path": val}
             case str():
-                return cls(name=val, type="file", path=val)
+                kwargs = {"name": val, "type": "file", "path": val}
             case dict():
-                return cls(**val)
+                kwargs = val
             case _:
                 raise ValueError(f'Invalid artifact - "{val}"')
 
+        return super().factory(kwargs, defaults=defaults)
+
 
 @dataclasses.dataclass(frozen=True)
-class Task(Uri, Callable):
+class Task(Uri, Callable, Factory):
     _input: typing.Tuple[Artifact] = dataclasses.field(default_factory=tuple)
     _output: typing.Tuple[Artifact] = dataclasses.field(default_factory=tuple)
     _upstream: typing.Tuple["Task"] = dataclasses.field(default_factory=tuple)
+    type = "task"  # Intentionally use a class variable for task types
 
     @property
     def input(self):
@@ -94,8 +105,9 @@ class Task(Uri, Callable):
         return self._upstream
 
     @classmethod
-    def from_config(cls, val, /):
-        raise NotImplementedError
+    def from_config(cls, name, /):
+        cfg = footing.config.find(f"{cls.type}.{name}")
+        return cls.factory(cfg, defaults={"name": name})
 
     @property
     def edges(self):
@@ -131,7 +143,7 @@ class Graph(Callable):
 
 
 @dataclasses.dataclass(frozen=True)
-class Registry:
+class Registry(Factory):
     name: str
     type: str
     channel: str = None
@@ -141,14 +153,16 @@ class Registry:
             raise ValueError("Must supply channel when using conda registry")
 
     @classmethod
-    def from_config(cls, val, /):
+    def factory(cls, val, /, *, defaults=None):
         match val:
             case "pypi":
-                return cls(name=val, type=val)
+                kwargs = {"name": val, "type": val}
             case "conda-forge":
-                return cls(name=val, type="conda", channel="conda-forge")
+                kwargs = {"name": val, "type": "conda", "channel": "conda-forge"}
             case _:
                 raise ValueError(f'Invalid registry "{val}"')
+
+        return super().factory(kwargs, defaults=defaults)
 
     def install(self, packages):
         install_strs = " ".join(f'"{package.package}"' for package in packages)
@@ -165,25 +179,23 @@ class Registry:
 
 
 @dataclasses.dataclass(frozen=True)
-class Package:
+class Package(Factory):
     package: str
     registry: Registry
 
     @classmethod
-    def from_config(cls, val, /, *, defaults=None):
-        cfg = footing.config.get()
-        defaults = defaults or {}
-
+    def factory(cls, val, /, *, defaults=None):
         match val:
             case str():
-                return cls(**(defaults | {"package": val}))
+                kwargs = {"package": val}
             case dict():
-                if "registry" in val:
-                    val["registry"] = Registry.from_config(val["registry"])
-
-                return cls(**(defaults | val))
+                kwargs = copy.copy(val)
+                if "registry" in kwargs:
+                    kwargs["registry"] = Registry.factory(kwargs["registry"])
             case _:
                 raise TypeError(f'Invalid package type "{type(val)}"')
+
+        return super().factory(kwargs, defaults=defaults)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -197,19 +209,19 @@ class Kit(Task, Contextual):
     packages: typing.Tuple[Package]
 
     @classmethod
-    def from_config(cls, val, /):
-        cfg = footing.config.find(f"kit.{val}")
-
+    def factory(cls, val, /, *, defaults=None):
         # Load the default registry
-        default_registry_name = cfg.get("registry", "conda-forge")
-        default_registry = Registry.from_config(default_registry_name)
-        defaults = {"registry": default_registry}
+        default_registry_name = val.get("registry", "conda-forge")
+        default_registry = Registry.factory(default_registry_name)
 
-        packages = tuple(
-            Package.from_config(package, defaults=defaults) for package in cfg.get("packages", [])
-        )
+        kwargs = val | {
+            "packages": tuple(
+                Package.factory(package, defaults={"registry": default_registry})
+                for package in val.get("packages", [])
+            )
+        }
 
-        return cls(name=val, packages=packages)
+        return super().factory(kwargs, defaults=defaults)
 
     @functools.cached_property
     def _conda_env(self):
@@ -256,32 +268,31 @@ class Op(Task):
     kit: Kit = None
 
     @classmethod
-    def from_config(cls, val):
-        cfg = footing.config.find(f"op.{val}")
-        kit = Kit.from_config(cfg["kit"]) if "kit" in cfg else None
+    def factory(cls, val, /, *, defaults=None):
+        kit = Kit.from_config(val["kit"]) if "kit" in val else None
 
-        input = cfg.get("input") or []
+        input = val.get("input") or []
         input = [input] if isinstance(input, str) else input
-        output = cfg.get("output") or []
+        output = val.get("output") or []
         output = [output] if isinstance(output, str) else output
         upstream = [cls.from_config(i[1:].strip()) for i in input if i.startswith("^")]
         if kit:
             upstream.append(kit)
 
-        input = [Artifact.from_config(i) for i in input if not i.startswith("^")]
+        input = [Artifact.factory(i) for i in input if not i.startswith("^")]
         for u in upstream:
             input.extend(u._output)
 
-        output = [Artifact.from_config(o) for o in output]
+        output = [Artifact.factory(o) for o in output]
 
-        return cls(
-            name=val,
-            kit=kit,
-            command=cfg["command"],
-            _input=tuple(input),
-            _output=tuple(output),
-            _upstream=tuple(upstream),
-        )
+        kwargs = {
+            "kit": kit,
+            "command": val["command"],
+            "_input": tuple(input),
+            "_output": tuple(output),
+            "_upstream": tuple(upstream),
+        }
+        return super().factory(kwargs, defaults=defaults)
 
     def call(self):
         with contextlib.ExitStack() as stack:
