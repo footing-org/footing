@@ -164,7 +164,7 @@ def cli():
                 import footing.core  # We do this nested to make CLI invocations faster
 
                 op = footing.core.Op.from_config(command)
-                op.graph()
+                footing.core.Runner(op.graph)()
         except Exception as exc:
             if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
                 msg = exc.stderr.decode("utf8").strip()

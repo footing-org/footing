@@ -4,13 +4,12 @@ import contextvars
 import copy
 import dataclasses
 import functools
+import glob
 import os
 import pathlib
 import re
 import typing
 import weakref
-
-import networkx as nx
 
 import footing.config
 import footing.utils
@@ -68,8 +67,6 @@ class Uri:
 
 @dataclasses.dataclass(frozen=True)
 class Obj(Uri, Factory):
-    type = None  # Intentionally set as a class variable that must be set by children
-
     @classmethod
     def from_config(cls, name, /):
         cfg = footing.config.find(f"{cls.type}.{name}")
@@ -94,20 +91,44 @@ class Artifact(Uri, Factory):
 
         return super().factory(kwargs, defaults=defaults)
 
+    def _hash_file(self, path):
+        with open(path) as f:
+            return footing.utils.hash128(f.read())
+
+    def _mtime(self, path):
+        try:
+            return os.path.getmtime(path)
+        except FileNotFoundError:
+            return None
+
+    def hash(self):
+        match self.type:
+            case "file":
+                return self._hash_file(self.path)
+            case "glob":
+                val = "-".join(
+                    sorted(
+                        f"{file}:{self._mtime(file)}"
+                        for file in glob.glob(self.path, recursive=True)
+                    )
+                )
+                return footing.utils.hash128(val)
+            case _:
+                raise RuntimeError(f'Cannot hash type - "{self.type}"')
+
 
 @dataclasses.dataclass(frozen=True)
 class Task(Obj, Callable):
-    _input: typing.Tuple[Artifact] = dataclasses.field(default_factory=tuple)
-    _output: typing.Tuple[Artifact] = dataclasses.field(default_factory=tuple)
+    input: typing.Tuple[Artifact] = dataclasses.field(default_factory=tuple)
+    output: typing.Tuple[Artifact] = dataclasses.field(default_factory=tuple)
     _upstream: typing.Tuple["Task"] = dataclasses.field(default_factory=tuple)
+    _cacheable: bool = True
 
-    @property
-    def input(self):
-        return self._input
+    def hash(self):
+        return footing.utils.hash128(self, *[i.hash() for i in self.input])
 
-    @property
-    def output(self):
-        return self._output
+    def ref(self):
+        return footing.utils.hash128(self.hash(), *[o.hash() for o in self.output])
 
     @property
     def upstream(self):
@@ -137,13 +158,52 @@ class Graph(Callable):
     edges: typing.Tuple[Edge]
     tasks: typing.Tuple[Task]
 
+
+@dataclasses.dataclass(frozen=True)
+class Runner(Callable):
+    graph: Graph
+
+    @property
+    def cache_path(self):
+        return pathlib.Path(".footing") / "cache"
+
+    def cached_ref_path(self, task):
+        return self.cache_path / "ref" / task.uri
+
+    def cached_ref(self, task):
+        try:
+            with open(self.cached_ref_path(task)) as f:
+                return f.read()
+        except FileNotFoundError:
+            return None
+
+    def cache_ref(self, task):
+        try:
+            with open(self.cached_ref_path(task), "w") as f:
+                f.write(task.ref())
+        except FileNotFoundError:
+            self.cached_ref_path(task).parent.mkdir(exist_ok=True, parents=True)
+            return self.cached_ref_path(task)
+
+    def run_task(self, task):
+        """Runs a task, restoring from the cache if found"""
+        # Check if the task is totally up to date
+        if self.cached_ref(task) == task.ref():
+            return
+        else:
+            task()
+
+        self.cache_ref(task)
+
     def call(self):
+        import networkx as nx  # TODO: Remove this dependency after implementing topological sort
+
         g = nx.DiGraph()
-        g.add_nodes_from((t.uri, {"task": t}) for t in set(self.tasks))
-        g.add_edges_from((e.upstream.uri, e.downstream.uri) for e in set(self.edges))
+        g.add_nodes_from((t.uri, {"task": t}) for t in set(self.graph.tasks))
+        g.add_edges_from((e.upstream.uri, e.downstream.uri) for e in set(self.graph.edges))
 
         for n in nx.topological_sort(g):
-            g.nodes[n]["task"]()
+            self.run_task(g.nodes[n]["task"])
 
 
 @dataclasses.dataclass(frozen=True)
@@ -206,37 +266,53 @@ class Package(Factory):
 class CondaEnv(Artifact):
     type: str = "conda_env"
 
+    def hash(self):
+        return footing.utils.hash128(str(pathlib.Path(self.path).stat().st_mtime))
+
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Kit(Task, Contextual):
-    type: str = "kit"
     packages: typing.Tuple[Package]
+    type: str = "kit"
 
     @classmethod
     def factory(cls, val, /, *, defaults=None):
+        defaults = defaults or {}
+        name = val.get("name", defaults["name"])
+
         # Load the default registry
         default_registry_name = val.get("registry", "conda-forge")
         default_registry = Registry.factory(default_registry_name)
 
+        def iter_packages(cfg):
+            for p in cfg.get("packages", []):
+                if p.startswith("^"):
+                    yield from iter_packages(footing.config.find(f"kit.{p[1:].strip()}"))
+                else:
+                    yield p
+
+        def package_name(install):
+            name = re.match("[\w\-\.]+", install)
+            if not name:
+                raise ValueError(f"Invalid package name - {install}")
+
+            return name.group().lower().replace(".", "_").replace("-", "_")
+
+        packages = {package_name(package): package for package in iter_packages(val)}
+        env_name = name + "-" + footing.utils.hash32(os.getcwd(), footing.utils.detect_platform())
         kwargs = val | {
             "packages": tuple(
                 Package.factory(package, defaults={"registry": default_registry})
-                for package in val.get("packages", [])
-            )
+                for package in packages.values()
+            ),
+            "output": (CondaEnv(name=name, path=str(footing.utils.toolkit_path() / env_name)),),
         }
 
         return super().factory(kwargs, defaults=defaults)
 
     @functools.cached_property
     def _conda_env(self):
-        path = footing.utils.toolkit_path() / footing.utils.hash128(
-            self, footing.utils.detect_platform()
-        )
-        return CondaEnv(name=self.name, path=path)
-
-    @property
-    def output(self):
-        return [self._conda_env()]
+        return self.output[0]
 
     @contextlib.contextmanager
     def ctx(self):
@@ -251,8 +327,8 @@ class Kit(Task, Contextual):
             yield
 
     def call(self):
-        """Build the toolkit, utilizing the cache if necessary"""
-        footing.utils.conda_cmd(f"create -q -y -p {self._conda_env.path}")
+        if not pathlib.Path(self._conda_env.path).exists():
+            footing.utils.conda_cmd(f"create -q -y -p {self._conda_env.path}")
 
         packages_by_registry = collections.defaultdict(list)
         for package in self.packages:
@@ -262,14 +338,16 @@ class Kit(Task, Contextual):
             for registry, packages in packages_by_registry.items():
                 registry.install(packages)
 
+        pathlib.Path(self._conda_env.path).touch()
+
         return [self._conda_env]
 
 
 @dataclasses.dataclass(frozen=True, kw_only=True)
 class Op(Task):
-    type: str = "op"
     command: str
     kit: Kit = None
+    type: str = "op"
 
     @classmethod
     def factory(cls, val, /, *, defaults=None):
@@ -285,15 +363,15 @@ class Op(Task):
 
         input = [Artifact.factory(i) for i in input if not i.startswith("^")]
         for u in upstream:
-            input.extend(u._output)
+            input.extend(u.output)
 
         output = [Artifact.factory(o) for o in output]
 
         kwargs = {
             "kit": kit,
             "command": val["command"],
-            "_input": tuple(input),
-            "_output": tuple(output),
+            "input": tuple(input),
+            "output": tuple(output),
             "_upstream": tuple(upstream),
         }
         return super().factory(kwargs, defaults=defaults)
@@ -304,3 +382,5 @@ class Op(Task):
                 stack.enter_context(self.kit)
 
             footing.utils.run(self.command)
+
+        return self.output

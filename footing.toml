@@ -19,6 +19,7 @@ packages = [
 
 [kit.dev]
 packages = [
+    "^base",
     "black==23.1.0",
     "pip-tools==6.12.2",
 ]
